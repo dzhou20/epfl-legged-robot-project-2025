@@ -11,7 +11,7 @@ def quadruped_jump():
     # Initialize simulation
     # Feel free to change these options! (except for control_mode and timestep)
     sim_options = SimulationOptions(
-        on_rack=True,  # Whether to suspend the robot in the air (helpful for debugging)
+        on_rack=False,  # Whether to suspend the robot in the air (helpful for debugging)
         # to work with the code, use on_rack=False
         render=True,  # Whether to use the GUI visualizer (slower than running in the background)
         record_video=False,  # Whether to record a video to file (needs render=True)
@@ -21,7 +21,7 @@ def quadruped_jump():
 
     # Determine number of jumps to simulate
     n_jumps = 10  # Feel free to change this number
-    jump_duration = 5.0  # TODO: determine how long a jump takes
+    jump_duration = 0.8  # TODO: determine how long a jump takes
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # TODO: set parameters for the foot force profile here
@@ -50,8 +50,9 @@ def quadruped_jump():
         tau += gravity_compensation(simulator)
 
         # If touching the ground, add virtual model
-        on_ground = True  # TODO: how do we know we're on the ground?
-        on_ground = QuadSimulator.get_foot_contacts
+        foot_contacts = simulator.get_foot_contacts()  # use contact for 4 foot
+        on_ground = any(foot_contacts)  # True if any foot is touching the ground
+        print(foot_contacts)
         if on_ground:
             tau += virtual_model(simulator)
       
@@ -140,8 +141,8 @@ def apply_force_profile(
     for leg_id in range(N_LEGS):
 
         # TODO: compute force profile torques for leg_id
-        tau_i = np.zeros(3)
-
+        # tau_i = np.zeros(3)
+        tau_i = simulator.get_jacobian_and_position(leg_id)[0].T @ force_profile.force()
         # Store in torques array
         tau[leg_id * N_JOINTS : leg_id * N_JOINTS + N_JOINTS] = tau_i
 

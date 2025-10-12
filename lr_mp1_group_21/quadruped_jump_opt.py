@@ -62,7 +62,15 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator) -> float:
     # TODO: pick optimization variables
     # The following function creates an optimization variable with given name and lower and upper bounds
     # You can then plug in the value in your controller
-    variable1 = trial.suggest_float(name="variable1", low=0.0, high=1.0)
+    Fz = trial.suggest_float("Fz", 150, 350)
+    Fx = trial.suggest_float("Fx", 0, 150)
+    Fy = trial.suggest_float("Fy", 0, 150)
+    f0 = trial.suggest_float("f0", 0.75, 1.75)      # impulse
+    f1 = 1.25
+    # f0 [0.75, 1.75]
+    # Fx [0 150]
+    # Fy [0 150]
+    # Fz [150 350]
 
     # Reset the simulation
     simulator.reset()
@@ -71,12 +79,12 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator) -> float:
     sim_options = simulator.options
 
     # Determine number of jumps to simulate
-    n_jumps = 1  # Feel free to change this number
-    jump_duration = 5.0  # TODO: determine how long a jump takes
+    n_jumps = 5  # Feel free to change this number
+    jump_duration = 1/(2*f0)+1/(2*f1)  # TODO: determine how long a jump takes
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # TODO: set parameters for the foot force profile here
-    force_profile = FootForceProfile(f0=1.25, f1=1.25, Fx=75, Fy=75, Fz=250)
+    force_profile = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
 
     for _ in range(n_steps):
         # Step the oscillator
@@ -90,7 +98,9 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator) -> float:
         tau += gravity_compensation(simulator)
 
         # If touching the ground, add virtual model
-        on_ground = True  # TODO: how do we know we're on the ground?
+        # on_ground = True  # TODO: how do we know we're on the ground?
+        foot_contacts = simulator.get_foot_contacts()  # use contact for 4 foot
+        on_ground = any(foot_contacts)  # True if any foot is touching the ground
         if on_ground:
             tau += virtual_model(simulator)
 
@@ -100,6 +110,17 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator) -> float:
 
     # TODO: implement an objective function and return its value
     # Note: the objective function is maximized!
+    # E.g., return the maximum height reached by the base during the simulation
+    def get_max_height(simulator: QuadSimulator) -> float:
+        """Get the maximum height reached by the base during the simulation."""
+        history = simulator.get_base_position()
+        max_height = np.max(history)  # Z coordinate is the height
+        return max_height
+    
+    objective_value = get_max_height(simulator)
+    print(f"Trial {trial.number}: max height = {objective_value:.4f} m")
+    return objective_value
+    
     return 0
 
 

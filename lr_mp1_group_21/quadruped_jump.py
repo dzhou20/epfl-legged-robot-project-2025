@@ -25,7 +25,11 @@ def quadruped_jump():
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # TODO: set parameters for the foot force profile here
-    force_profile = FootForceProfile(f0=1.25, f1=1.25, Fx=75, Fy=75, Fz=250)
+    force_profile = FootForceProfile(f0=1.25, f1=1.25, Fx=75, Fy=0, Fz=250)
+    # f0 [0.75, 1.75]
+    # Fx [0 150]
+    # Fy [0 150]
+    # Fz [150 350]
 
     for _ in range(n_steps):
         # If the simulator is closed, stop the loop
@@ -52,7 +56,7 @@ def quadruped_jump():
         # If touching the ground, add virtual model
         foot_contacts = simulator.get_foot_contacts()  # use contact for 4 foot
         on_ground = any(foot_contacts)  # True if any foot is touching the ground
-        print(foot_contacts)
+        # print(foot_contacts)
         if on_ground:
             tau += virtual_model(simulator,Katt)
       

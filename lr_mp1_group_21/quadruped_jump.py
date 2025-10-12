@@ -51,9 +51,10 @@ def quadruped_jump():
 
         # If touching the ground, add virtual model
         on_ground = True  # TODO: how do we know we're on the ground?
+        on_ground = QuadSimulator.get_foot_contacts
         if on_ground:
             tau += virtual_model(simulator)
-
+      
         # Set the motor commands and step the simulation
         simulator.set_motor_targets(tau)
         simulator.step()
@@ -63,17 +64,32 @@ def quadruped_jump():
 
     # OPTIONAL: add additional functions here (e.g., plotting)
 
+Kp = np.diag([400,400,400])
+Kd = np.diag([8,8,8])
+Kd_point = np.diag([0.8,0.8,0.8])
+
 
 def nominal_position(
     simulator: QuadSimulator,
     # OPTIONAL: add potential controller parameters here (e.g., gains)
+    Kp = np.diag([0,0,0]),
+    Kd = np.diag([0,0,0]),
+    Kd_joint = np.diag([0,0,0]),
+    nominal_foot_pos = np.array([0,0,-0.2])  
 ) -> np.ndarray:
     # All motor torques are in a single array
     tau = np.zeros(N_JOINTS * N_LEGS)
     for leg_id in range(N_LEGS):
+        # #TODO: compute nominal position torques for leg_id
+        J, ee_pos_legFrame =simulator.get_jacobian_and_position(leg_id)
+        
 
-        # TODO: compute nominal position torques for leg_id
-        tau_i = np.zeros(3)
+        motor_vel = simulator.get_motor_velocities(leg_id)
+
+        foot_linvel = J @ motor_vel
+
+        # calculate torque
+        tau_i= J.T @ ( Kp @ ( nominal_foot_pos - ee_pos_legFrame) + Kd @ (-foot_linvel) + Kd_joint @(-motor_vel))
 
         # Store in torques array
         tau[leg_id * N_JOINTS : leg_id * N_JOINTS + N_JOINTS] = tau_i

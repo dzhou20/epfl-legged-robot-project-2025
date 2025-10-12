@@ -12,6 +12,7 @@ def quadruped_jump():
     # Feel free to change these options! (except for control_mode and timestep)
     sim_options = SimulationOptions(
         on_rack=True,  # Whether to suspend the robot in the air (helpful for debugging)
+        # to work with the code, use on_rack=False
         render=True,  # Whether to use the GUI visualizer (slower than running in the background)
         record_video=False,  # Whether to record a video to file (needs render=True)
         tracking_camera=True,  # Whether the camera follows the robot (instead of free)
@@ -24,7 +25,7 @@ def quadruped_jump():
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # TODO: set parameters for the foot force profile here
-    force_profile = FootForceProfile(f0=0, f1=0, Fx=0, Fy=0, Fz=0)
+    force_profile = FootForceProfile(f0=1.25, f1=1.25, Fx=75, Fy=75, Fz=250)
 
     for _ in range(n_steps):
         # If the simulator is closed, stop the loop

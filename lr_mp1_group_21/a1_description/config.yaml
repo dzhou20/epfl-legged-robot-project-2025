@@ -1,0 +1,24 @@
+# URDF file to load
+urdf: "a1_description/urdf/a1.urdf"
+# Spawn position of the robot base (x,y,z)
+init_position:
+  - 0.0
+  - 0.0
+  - 0.305
+# Number of legs and motors per legs
+n_legs: 4
+n_motors_per_leg: 3
+# Default angles of the motors
+default_angles:
+  hip: 0.0
+  thigh: 0.78539816
+  calf: -1.57079633
+# Motor limits
+limit_torque: 33.5
+limit_velocity: 21.0
+# Kinematics
+link_length_hip: 0.0838
+link_length_thigh: 0.2
+link_length_calf: 0.2
+com_hip_offset_x: 0.183
+com_hip_offset_y: 0.043

@@ -76,7 +76,7 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator) -> float:
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # TODO: set parameters for the foot force profile here
-    force_profile = FootForceProfile(f0=0, f1=0, Fx=0, Fy=0, Fz=0)
+    force_profile = FootForceProfile(f0=1.25, f1=1.25, Fx=75, Fy=75, Fz=250)
 
     for _ in range(n_steps):
         # Step the oscillator

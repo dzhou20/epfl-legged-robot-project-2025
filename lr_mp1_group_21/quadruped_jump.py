@@ -22,6 +22,7 @@ def quadruped_jump():
     # Determine number of jumps to simulate
     n_jumps = 10  # Feel free to change this number
     jump_duration = 5.0  # TODO: determine how long a jump takes
+
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # TODO: set parameters for the foot force profile here
@@ -118,12 +119,14 @@ def gravity_compensation(
     # OPTIONAL: add potential controller parameters here (e.g., gains)
 ) -> np.ndarray:
     # All motor torques are in a single array
+    g = 9.81
+    perleg_mass = simulator.get_mass()/4
     tau = np.zeros(N_JOINTS * N_LEGS)
     for leg_id in range(N_LEGS):
-
+        J, ee_pos_legFrame =simulator.get_jacobian_and_position(leg_id)
         # TODO: compute gravity compensation torques for leg_id
-        tau_i = np.zeros(3)
-
+        Fg = np.array([0, 0, -perleg_mass * g])
+        tau_i = J.T @ Fg
         # Store in torques array
         tau[leg_id * N_JOINTS : leg_id * N_JOINTS + N_JOINTS] = tau_i
 

@@ -25,7 +25,15 @@ def quadruped_jump():
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # TODO: set parameters for the foot force profile here
-    force_profile = FootForceProfile(f0=1.25, f1=1.25, Fx=75, Fy=0, Fz=250)
+    # We create a list of 4 force profiles, one for each leg.
+    # This allows us to have different force profiles for each leg.
+    # For now, they are all the same, but you can change them individually.
+    force_profiles = [
+        FootForceProfile(f0=1.25, f1=0.25, Fx=0, Fy=0, Fz=250), # for _ in range(N_LEGS)
+        FootForceProfile(f0=1.25, f1=0.25, Fx=0, Fy=25, Fz=250),
+        FootForceProfile(f0=1.25, f1=0.25, Fx=0, Fy=50, Fz=250),
+        FootForceProfile(f0=1.25, f1=0.25, Fx=0, Fy=75, Fz=250)
+    ]
     # f0 [0.75, 1.75]
     # Fx [0 150]
     # Fy [0 150]
@@ -36,8 +44,9 @@ def quadruped_jump():
         if not simulator.is_connected():
             break
 
-        # Step the oscillator
-        force_profile.step(sim_options.timestep)
+        # Step the oscillators
+        for profile in force_profiles:
+            profile.step(sim_options.timestep)
 
         # Compute torques as motor targets
         # The convention is as follows:
@@ -50,7 +59,7 @@ def quadruped_jump():
 
         # TODO: implement the functions below, and add potential controller parameters as function parameters here
         tau += nominal_position(simulator,Kp,Kd,Kd_point)
-        tau += apply_force_profile(simulator, force_profile)
+        tau += apply_force_profile(simulator, force_profiles)
         tau += gravity_compensation(simulator)
 
         # If touching the ground, add virtual model
@@ -149,7 +158,7 @@ def gravity_compensation(
 
 def apply_force_profile(
     simulator: QuadSimulator,
-    force_profile: FootForceProfile,
+    force_profiles: list[FootForceProfile],
     # OPTIONAL: add potential controller parameters here (e.g., gains)
 ) -> np.ndarray:
     # All motor torques are in a single array
@@ -158,7 +167,7 @@ def apply_force_profile(
 
         # TODO: compute force profile torques for leg_id
         # tau_i = np.zeros(3)
-        tau_i = simulator.get_jacobian_and_position(leg_id)[0].T @ force_profile.force()
+        tau_i = simulator.get_jacobian_and_position(leg_id)[0].T @ force_profiles[leg_id].force()
         # Store in torques array
         tau[leg_id * N_JOINTS : leg_id * N_JOINTS + N_JOINTS] = tau_i
 

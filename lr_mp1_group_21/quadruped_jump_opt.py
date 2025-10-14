@@ -42,10 +42,11 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
 
     # To set initial parameters for the first trial, you can enqueue a trial like this before calling study.optimize():
     initial_params = {
-        "Fz_FR": 150.0, "Fx_FR": 75.0, "Fy_FR": 0.0, "f0_FR": 1.25,
-        "Fz_FL": 150.0, "Fx_FL": 75.0, "Fy_FL": 0.0, "f0_FL": 1.25,
-        "Fz_RR": 300.0, "Fx_RR": 75.0, "Fy_RR": 0.0, "f0_RR": 1.25,
-        "Fz_RL": 300.0, "Fx_RL": 75.0, "Fy_RL": 0.0, "f0_RL": 1.25,
+        "Fz_FR": 150.0, "Fx_FR": 75.0, "Fy_FR": 0.0,
+        "Fz_FL": 150.0, "Fx_FL": 75.0, "Fy_FL": 0.0,
+        "Fz_RR": 300.0, "Fx_RR": 75.0, "Fy_RR": 0.0,
+        "Fz_RL": 300.0, "Fx_RL": 75.0, "Fy_RL": 0.0,
+        "f0": 1.25,
     }
     study.enqueue_trial(initial_params)
 
@@ -89,22 +90,20 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
     Fz_FR = trial.suggest_float("Fz_FR", 150, 350)
     Fx_FR = trial.suggest_float("Fx_FR", 0, 150)
     Fy_FR = trial.suggest_float("Fy_FR", 0, 150)
-    f0_FR = trial.suggest_float("f0_FR", 0.75, 1.75)
 
     Fz_FL = trial.suggest_float("Fz_FL", 150, 350)
     Fx_FL = trial.suggest_float("Fx_FL", 0, 150)
     Fy_FL = trial.suggest_float("Fy_FL", 0, 150)
-    f0_FL = trial.suggest_float("f0_FL", 0.75, 1.75)
 
     Fz_RR = trial.suggest_float("Fz_RR", 150, 350)
     Fx_RR = trial.suggest_float("Fx_RR", 0, 150)
     Fy_RR = trial.suggest_float("Fy_RR", 0, 150)
-    f0_RR = trial.suggest_float("f0_RR", 0.75, 1.75)
 
     Fz_RL = trial.suggest_float("Fz_RL", 150, 350)
     Fx_RL = trial.suggest_float("Fx_RL", 0, 150)
     Fy_RL = trial.suggest_float("Fy_RL", 0, 150)
-    f0_RL = trial.suggest_float("f0_RL", 0.75, 1.75)
+
+    f0 = trial.suggest_float("f0", 0.75, 1.75)
     
     f1 = 1.25 # This seems to be a constant
 
@@ -121,15 +120,15 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
         n_jumps = 10  # Feel free to change this number
     
     # Using average of f0 for jump duration calculation
-    f0_avg = (f0_FR + f0_FL + f0_RR + f0_RL) / 4.0
+    f0_avg = f0
     jump_duration = 1/(2*f0_avg) + 1/(2*f1)
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # Create separate profiles for each leg
-    profile_FR = FootForceProfile(f0=f0_FR, f1=f1, Fx=Fx_FR, Fy=Fy_FR, Fz=Fz_FR)
-    profile_FL = FootForceProfile(f0=f0_FL, f1=f1, Fx=Fx_FL, Fy=Fy_FL, Fz=Fz_FL)
-    profile_RR = FootForceProfile(f0=f0_RR, f1=f1, Fx=Fx_RR, Fy=Fy_RR, Fz=Fz_RR)
-    profile_RL = FootForceProfile(f0=f0_RL, f1=f1, Fx=Fx_RL, Fy=Fy_RL, Fz=Fz_RL)
+    profile_FR = FootForceProfile(f0=f0, f1=f1, Fx=Fx_FR, Fy=Fy_FR, Fz=Fz_FR)
+    profile_FL = FootForceProfile(f0=f0, f1=f1, Fx=Fx_FL, Fy=Fy_FL, Fz=Fz_FL)
+    profile_RR = FootForceProfile(f0=f0, f1=f1, Fx=Fx_RR, Fy=Fy_RR, Fz=Fz_RR)
+    profile_RL = FootForceProfile(f0=f0, f1=f1, Fx=Fx_RL, Fy=Fy_RL, Fz=Fz_RL)
 
     # The order of legs is FR, FL, RR, RL
     force_profiles = [profile_FR, profile_FL, profile_RR, profile_RL]
@@ -176,6 +175,7 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
         """
         Calculates the distance of the first successful jump.
         A jump is successful if the robot leaves the ground and lands again.
+        For forward
         """
         liftoff_idx = -1
         landing_idx = -1
@@ -201,7 +201,7 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
         liftoff_pos = history[liftoff_idx]
         landing_pos = history[landing_idx]
 
-        distance = np.sqrt((landing_pos[0] - liftoff_pos[0])**2 + (landing_pos[1] - liftoff_pos[1])**2)
+        distance = landing_pos[0] - liftoff_pos[0]  # Forward distance (X direction)
         return distance
 
     if objective_choice == "height":
@@ -228,22 +228,20 @@ def replay_jump(simulator: QuadSimulator, params: dict):
     Fz_FR = params["Fz_FR"]
     Fx_FR = params["Fx_FR"]
     Fy_FR = params["Fy_FR"]
-    f0_FR = params["f0_FR"]
 
     Fz_FL = params["Fz_FL"]
     Fx_FL = params["Fx_FL"]
     Fy_FL = params["Fy_FL"]
-    f0_FL = params["f0_FL"]
 
     Fz_RR = params["Fz_RR"]
     Fx_RR = params["Fx_RR"]
     Fy_RR = params["Fy_RR"]
-    f0_RR = params["f0_RR"]
 
     Fz_RL = params["Fz_RL"]
     Fx_RL = params["Fx_RL"]
     Fy_RL = params["Fy_RL"]
-    f0_RL = params["f0_RL"]
+
+    f0 = params["f0"]
     
     f1 = 1.25 # This seems to be a constant
 
@@ -257,15 +255,15 @@ def replay_jump(simulator: QuadSimulator, params: dict):
     n_jumps = 2 # Simulate for long enough to capture one full jump
     
     # Using average of f0 for jump duration calculation
-    f0_avg = (f0_FR + f0_FL + f0_RR + f0_RL) / 4.0
+    f0_avg = f0
     jump_duration = 1/(2*f0_avg) + 1/(2*f1)
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # Create separate profiles for each leg
-    profile_FR = FootForceProfile(f0=f0_FR, f1=f1, Fx=Fx_FR, Fy=Fy_FR, Fz=Fz_FR)
-    profile_FL = FootForceProfile(f0=f0_FL, f1=f1, Fx=Fx_FL, Fy=Fy_FL, Fz=Fz_FL)
-    profile_RR = FootForceProfile(f0=f0_RR, f1=f1, Fx=Fx_RR, Fy=Fy_RR, Fz=Fz_RR)
-    profile_RL = FootForceProfile(f0=f0_RL, f1=f1, Fx=Fx_RL, Fy=Fy_RL, Fz=Fz_RL)
+    profile_FR = FootForceProfile(f0=f0, f1=f1, Fx=Fx_FR, Fy=Fy_FR, Fz=Fz_FR)
+    profile_FL = FootForceProfile(f0=f0, f1=f1, Fx=Fx_FL, Fy=Fy_FL, Fz=Fz_FL)
+    profile_RR = FootForceProfile(f0=f0, f1=f1, Fx=Fx_RR, Fy=Fy_RR, Fz=Fz_RR)
+    profile_RL = FootForceProfile(f0=f0, f1=f1, Fx=Fx_RL, Fy=Fy_RL, Fz=Fz_RL)
 
     # The order of legs is FR, FL, RR, RL
     force_profiles = [profile_FR, profile_FL, profile_RR, profile_RL]

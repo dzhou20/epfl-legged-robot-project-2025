@@ -40,16 +40,20 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
         direction="maximize",
     )
 
-    # To set initial parameters for the first trial, you can enqueue a trial like this before calling study.optimize():
-    initial_params = {
-        "Fz": 225.0, "Fx": 75.0,
-        "f0": 1.25,
-    }
-    study.enqueue_trial(initial_params)
+    # To set initial parameters for the first trial, you can enqueue a trial like this
+    if objective_choice == "distance":
+        initial_params = {"Fx": 75.0, "Fz": 225.0, "f0": 1.25}
+    elif objective_choice == "lateral_distance":
+        initial_params = {"Fy": 75.0, "Fz": 225.0, "f0": 1.25}
+    elif objective_choice == "twist":
+        initial_params = {"Fx": 75.0, "Fy": 75.0, "f0": 1.25}
+    
+    if 'initial_params' in locals():
+        study.enqueue_trial(initial_params)
 
     # Run the optimization
     # You can change the number of trials here (the maximum number of trials is 50)
-    study.optimize(objective, n_trials=50, n_jobs=1)
+    study.optimize(objective, n_trials=20, n_jobs=1)
 
     # Close the simulation
     simulator.close()
@@ -61,22 +65,6 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
     print("Last trial value:", last_trial.value)
     print("Last trial params:", last_trial.params)
 
-    # Plot results if objective is first_jump_distance
-    if objective_choice == "first_jump_distance":
-        trials = study.get_trials()
-        successful_trials = [t for t in trials if t.value is not None]
-        if successful_trials:
-            import matplotlib.pyplot as plt
-            trial_numbers = [t.number for t in successful_trials]
-            distances = [t.value for t in successful_trials]
-            plt.figure(figsize=(10, 6))
-            plt.plot(trial_numbers, distances, marker='o', linestyle='-')
-            plt.xlabel("Trial Number")
-            plt.ylabel("Forward Jump Distance (m)")
-            plt.title("Forward Jump Distance vs. Trial Number")
-            plt.grid(True)
-            plt.savefig("jump_distance_vs_trials.png")
-            plt.close()
 
     # Plot optimized parameters vs. trial number
     trials = study.get_trials()
@@ -84,57 +72,41 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
     if successful_trials:
         import matplotlib.pyplot as plt
         trial_numbers = [t.number for t in successful_trials]
-        
-        # Extract parameters and objective values
-        fx_values = [t.params["Fx"] for t in successful_trials]
-        fz_values = [t.params["Fz"] for t in successful_trials]
-        f0_values = [t.params["f0"] for t in successful_trials]
         objective_values = [t.value for t in successful_trials]
 
-        fig, axs = plt.subplots(4, 1, figsize=(10, 20), sharex=True)
+        # The parameters that were optimized
+        optimized_params = list(successful_trials[0].params.keys())
+        num_params = len(optimized_params)
+        
+        fig, axs = plt.subplots(num_params + 1, 1, figsize=(10, 5 * (num_params + 1)), sharex=True)
+        fig.suptitle("Optimized Parameters and Objective Value vs. Trial Number")
 
-        # Plot Fx
-        axs[0].plot(trial_numbers, fx_values, marker='o', linestyle='-')
-        axs[0].set_ylabel("Fx")
-        axs[0].set_title("Optimized Parameters and Objective Value vs. Trial Number")
-        axs[0].grid(True)
-
-        # Plot Fz
-        axs[1].plot(trial_numbers, fz_values, marker='o', linestyle='-', color='r')
-        axs[1].set_ylabel("Fz")
-        axs[1].grid(True)
-
-        # Plot f0
-        axs[2].plot(trial_numbers, f0_values, marker='o', linestyle='-', color='g')
-        axs[2].set_ylabel("f0")
-        axs[2].grid(True)
+        # Plot optimized parameters
+        colors = ['b', 'r', 'g', 'c', 'm', 'y', 'k']
+        for i, param_name in enumerate(optimized_params):
+            param_values = [t.params[param_name] for t in successful_trials]
+            axs[i].plot(trial_numbers, param_values, marker='o', linestyle='-', color=colors[i % len(colors)])
+            axs[i].set_ylabel(param_name)
+            axs[i].grid(True)
 
         # Plot Objective Value
-        axs[3].plot(trial_numbers, objective_values, marker='o', linestyle='-', color='purple')
-        axs[3].set_ylabel("Objective Value")
-        axs[3].set_xlabel("Trial Number")
-        axs[3].grid(True)
+        axs[num_params].plot(trial_numbers, objective_values, marker='o', linestyle='-', color='purple')
+        axs[num_params].set_ylabel("Objective Value")
+        axs[num_params].set_xlabel("Trial Number")
+        axs[num_params].grid(True)
 
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0.03, 1, 0.98]) # Adjust layout to make room for suptitle
         plt.savefig("optimized_params_vs_trials.png")
         plt.close()
 
-    # Replay and record the best and last jumps
+    # Replay and record the best jump
     print("\nReplaying and recording the best jump...")
     best_video_path = "/home/dzhou20/epfl/legged_robots/epfl-legged-robot-project-2025/lr_mp1_group_21/videos/best_jump.mp4"
     best_replay_options = SimulationOptions(render=True, on_rack=False, tracking_camera=True, record_video=best_video_path)
     best_replay_simulator = QuadSimulator(best_replay_options)
-    replay_jump(best_replay_simulator, study.best_params)
+    replay_jump(best_replay_simulator, study.best_params, objective_choice)
     best_replay_simulator.close()
     print(f"Best jump video saved to {best_video_path}")
-
-    print("\nReplaying and recording the last jump...")
-    last_video_path = "/home/dzhou20/epfl/legged_robots/epfl-legged-robot-project-2025/lr_mp1_group_21/videos/last_jump.mp4"
-    last_replay_options = SimulationOptions(render=True, on_rack=False, tracking_camera=True, record_video=last_video_path)
-    last_replay_simulator = QuadSimulator(last_replay_options)
-    replay_jump(last_replay_simulator, last_trial.params)
-    last_replay_simulator.close()
-    print(f"Last jump video saved to {last_video_path}")
 
 
     # OPTIONAL: add additional functions here (e.g., plotting, recording to file)
@@ -147,11 +119,24 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
 
 def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: str) -> float:
     # the number of four legs: FR(Front Right), FL(Front Left), RR(Rear Right), RL(Rear Left)
-    # Parameters for all legs
-    Fz = trial.suggest_float("Fz", 150, 350)
-    Fx = trial.suggest_float("Fx", 0, 150)
-    Fy = 0.0  # To avoid sideways movement, set Fy to 0
-    f0 = trial.suggest_float("f0", 1, 1.75)
+    # Parameters are now conditional on the objective
+    if objective_choice == "distance":
+        Fx = trial.suggest_float("Fx", 0, 150)
+        Fz = trial.suggest_float("Fz", 150, 350)
+        f0 = trial.suggest_float("f0", 0.75, 1.75)
+        Fy = 0.0
+    elif objective_choice == "lateral_distance":
+        Fy = trial.suggest_float("Fy", 0, 150)
+        Fz = trial.suggest_float("Fz", 150, 350)
+        f0 = trial.suggest_float("f0", 0.75, 1.75)
+        Fx = 0.0
+    elif objective_choice == "twist":
+        Fx = trial.suggest_float("Fx", 0, 150)
+        Fy = trial.suggest_float("Fy", 0, 150)
+        f0 = trial.suggest_float("f0", 0.75, 1.75)
+        Fz = 250.0  # Using a fixed, balanced value for Fz
+    else:
+        raise ValueError(f"Invalid objective choice for parameter suggestion: {objective_choice}")
     
     f1 = 0.5 # This seems to be a constant
 
@@ -162,10 +147,7 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
     sim_options = simulator.options
 
     # Determine number of jumps to simulate
-    if objective_choice == "first_jump_distance":
-        n_jumps = 1  # Simulate for long enough to capture one full jump
-    else:
-        n_jumps = 5 # Feel free to change this number
+    n_jumps = 5 # Feel free to change this number
     
     # Using average of f0 for jump duration calculation
     f0_avg = f0
@@ -216,99 +198,84 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
         roll = base_row_pitch_yaw_history[:, 0]  
         pitch = base_row_pitch_yaw_history[:, 1]
         for roll_angle in roll:
-            if abs(roll_angle) > np.pi/2:  # 30 degrees in radians
+            if abs(roll_angle) > np.pi/3:  # 30 degrees in radians
                 return -100.0  # Large penalty for excessive roll
         for pitch_angle in pitch:
-            if abs(pitch_angle) > np.pi/2:  # 30 degrees in radians
+            if abs(pitch_angle) > np.pi/3:  # 30 degrees in radians
                 return -100.0  # Large penalty for excessive pitch
         return 0.0  # No penalty if within limits
         
-
-    def get_max_height(history: np.ndarray) -> float:
-        """Get the maximum height reached by the base during the simulation."""
-        max_height = np.max(history[:, 2])  # Z coordinate is the height
-        return max_height
 
     def get_max_distance(history: np.ndarray) -> float:
         """Get the maximum distance covered by the base during the simulation."""
         initial_pos = history[0]
         final_pos = history[-1]
         max_dist_x = final_pos[0] - initial_pos[0]
-        max_dist_y = final_pos[1] - initial_pos[1]
-        max_dist_z = final_pos[2] - initial_pos[2]
-        max_dist = (max_dist_x)
         if penalty_roll_pitch(base_row_pitch_yaw_history) < 0:
             return 0.0
-        return max_dist
+        return max_dist_x
 
-    def get_first_jump_distance(history: np.ndarray, contacts_hist: list) -> float:
-        """
-        Calculates distance from start to the first stable landing, ensuring a jump occurred.
-        """
-        # Find the first index of an air phase (a jump)
-        first_air_phase_idx = -1
-        for i, contacts in enumerate(contacts_hist):
-            if not np.any(contacts):
-                first_air_phase_idx = i
-                print("contacts:", contacts)
-                break
-        print("first_air_phase_idx:", first_air_phase_idx)
-
-        if first_air_phase_idx == -1:
-            print("Debug: No air phase detected.")
-            return 0.0 # No jump occurred
-
-        # Find the first stable landing (all four feet on ground) after the jump started
-        stable_landing_idx = -1
-        for i in range(first_air_phase_idx, len(contacts_hist)):
-            if all(contacts_hist[i]):
-                stable_landing_idx = i
-                break
-        
-        if stable_landing_idx == -1:
-            print("Debug: No stable four-foot landing detected after air phase.")
+    def get_max_lateral_distance(history: np.ndarray) -> float:
+        """Get the maximum lateral distance covered by the base during the simulation."""
+        initial_pos = history[0]
+        final_pos = history[-1]
+        max_dist_y = final_pos[1] - initial_pos[1]
+        if penalty_roll_pitch(base_row_pitch_yaw_history) < 0:
             return 0.0
+        return abs(max_dist_y)
 
-        start_pos = history[0]
-        landing_pos = history[stable_landing_idx]
+    def get_max_twist(rpy_history: np.ndarray) -> float:
+        """Get the maximum twist (yaw change) of the base during the simulation."""
+        initial_orientation = rpy_history[0]
+        final_orientation = rpy_history[-1]
+        yaw_initial = initial_orientation[2]
+        yaw_final = final_orientation[2]
+        if penalty_roll_pitch(base_row_pitch_yaw_history) < 0:
+            return 0.0
+        return abs(yaw_final - yaw_initial)
 
-        distance_x = landing_pos[0] - start_pos[0]
-        distance_y = landing_pos[1] - start_pos[1]
+    
 
-        print(f"Debug: Start Pos: {start_pos}, Landing Pos: {landing_pos}")
-        print(f"Debug: Landing Index: {stable_landing_idx}")
-        print(f"Debug: X Distance: {distance_x:.4f} m, Y Distance: {distance_y:.4f} m")
-        
-        # The optimization objective is the forward distance
-        return distance_x
-
-    if objective_choice == "height":
-        objective_value = get_max_height(base_position_history)
-        print(f"Trial {trial.number}: max height = {objective_value:.4f} m")
-    elif objective_choice == "distance":
+    if objective_choice == "distance":
         objective_value = get_max_distance(base_position_history)
         print(f"Trial {trial.number}: max distance = {objective_value:.4f} m")
-    elif objective_choice == "first_jump_distance":
-        objective_value = get_first_jump_distance(base_position_history, contact_history)
-        print(f"Trial {trial.number}: first jump distance = {objective_value:.4f} m")
+    elif objective_choice == "lateral_distance":
+        objective_value = get_max_lateral_distance(base_position_history)
+        print(f"Trial {trial.number}: max lateral distance = {objective_value:.4f} m")
+    elif objective_choice == "twist":
+        objective_value = get_max_twist(base_row_pitch_yaw_history)
+        print(f"Trial {trial.number}: max twist = {objective_value:.4f} rad")
     else:
         raise ValueError(f"Invalid objective choice: {objective_choice}")
-    
+
     return objective_value
 
 
-def replay_jump(simulator: QuadSimulator, params: dict):
+def replay_jump(simulator: QuadSimulator, params: dict, objective_choice: str):
     """
     Simulates a jump with the given parameters.
     This function is used to replay the best jump found during optimization.
     """
-    # Extract parameters
-    Fz = params["Fz"]
-    Fx = params["Fx"]
-    Fy = 0.0  # To avoid sideways movement, set Fy to 0
-    f0 = params["f0"]
-    
-    f1 = 0.5 # This seems to be a constant
+    # Extract parameters based on objective
+    if objective_choice == "distance":
+        Fx = params["Fx"]
+        Fz = params["Fz"]
+        f0 = params["f0"]
+        Fy = 0.0
+    elif objective_choice == "lateral_distance":
+        Fy = params["Fy"]
+        Fz = params["Fz"]
+        f0 = params["f0"]
+        Fx = 0.0
+    elif objective_choice == "twist":
+        Fx = params["Fx"]
+        Fy = params["Fy"]
+        f0 = params["f0"]
+        Fz = 225.0
+    else:
+        raise ValueError(f"Invalid objective choice for replay: {objective_choice}")
+
+    f1 = 0.5  # This seems to be a constant
 
     # Reset the simulation
     simulator.reset()
@@ -360,9 +327,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--objective",
         type=str,
-        default="height",
-        choices=["height", "distance", "first_jump_distance"],
-        help="Objective function to optimize: 'height', 'distance', or 'first_jump_distance'.",
+        default="distance",
+        choices=["distance", "lateral_distance", "twist"],
+        help="Objective function to optimize: 'distance', 'lateral_distance', or 'twist'.",
     )
     args = parser.parse_args()
 

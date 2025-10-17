@@ -79,9 +79,9 @@ def quadruped_jump():
     # OPTIONAL: add additional functions here (e.g., plotting)
 
 Kp = np.diag([400,400,400])
-Kd = np.diag([8,8,8])
+Kd = np.diag([50,50,50])
 Kd_point = np.diag([0.8,0.8,0.8])
-Katt = 200
+Katt = 50
 
 def nominal_position(
     simulator: QuadSimulator,

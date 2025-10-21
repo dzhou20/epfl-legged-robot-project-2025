@@ -23,7 +23,7 @@ from quadruped_jump import (
 N_LEGS = 4
 N_JOINTS = 3
 
-# Override Katt if needed (default is 500 from quadruped_jump.py)
+# Override Katt if needed (default is 200 from quadruped_jump.py)
 # Katt = 1000  # Uncomment and change this value to override
 
 

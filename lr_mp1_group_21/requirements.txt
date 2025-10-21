@@ -2,5 +2,5 @@ numpy==1.26.4
 pybullet==3.2.7
 PyYAML==6.0.2
 optuna==4.5.0
-matplotlib
-ffmpeg
+matplotlib  # Visualization
+ffmpeg  # for video recording (Windows and macOS)

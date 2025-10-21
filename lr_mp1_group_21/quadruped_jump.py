@@ -20,7 +20,7 @@ def quadruped_jump():
     simulator = QuadSimulator(sim_options)
 
     # Determine number of jumps to simulate
-    n_jumps = 10  # Feel free to change this number
+    n_jumps = 3  # Feel free to change this number
     jump_duration = 8  # TODO: determine how long a jump takes
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
@@ -29,15 +29,21 @@ def quadruped_jump():
     # This allows us to have different force profiles for each leg.
     # For now, they are all the same, but you can change them individually.
     force_profiles = [
-        FootForceProfile(f0=1.25, f1=0.8, Fx=50, Fy=0, Fz=202), # for _ in range(N_LEGS)
-        FootForceProfile(f0=1.25, f1=0.8, Fx=50, Fy=0, Fz=200),
-        FootForceProfile(f0=1.25, f1=0.8, Fx=30, Fy=0, Fz=303),
-        FootForceProfile(f0=1.25, f1=0.8, Fx=30, Fy=0, Fz=300)
+        FootForceProfile(f0=1.25, f1=0.8, Fx=75, Fy=0, Fz=350), # for _ in range(N_LEGS)
+        FootForceProfile(f0=1.25, f1=0.8, Fx=75, Fy=0, Fz=350),
+        FootForceProfile(f0=1.25, f1=0.8, Fx=75, Fy=0, Fz=350),
+        FootForceProfile(f0=1.25, f1=0.8, Fx=75, Fy=0, Fz=350)
+
+        # FootForceProfile(f0=1.25, f1=0.8, Fx=-18, Fy=60, Fz=350), # for _ in range(N_LEGS)
+        # FootForceProfile(f0=1.25, f1=0.8, Fx=-18, Fy=60, Fz=350),
+        # FootForceProfile(f0=1.25, f1=0.8, Fx=-18, Fy=60, Fz=350),
+        # FootForceProfile(f0=1.25, f1=0.8, Fx=-18, Fy=60, Fz=350)
     ]
     # f0 [0.75, 1.75]
     # Fx [0 150]
     # Fy [0 150]
     # Fz [150 350]
+    airborne = 0
 
     for _ in range(n_steps):
         # If the simulator is closed, stop the loop
@@ -55,16 +61,35 @@ def quadruped_jump():
         # - The order of the legs is FR, FL, RR, RL (front/rear,right/left)
         # - The resulting torque array is therefore structured as follows:
         # [FR_hip, FR_thigh, FR_calf, FL_hip, FL_thigh, FL_calf, RR_hip, RR_thigh, RR_calf, RL_hip, RL_thigh, RL_calf]
+        
+        foot_contacts = simulator.get_foot_contacts()  # use contact for 4 foot
+        
+        # for the lateral jump
+        # if all(foot_contacts):
+        #     airborne = 0
+        # if not any(foot_contacts):
+        #     airborne = 1
+
+        # for the forward jump
+        # airborne = 0, has been preset
+
+        #print(f"Airborne flag: {airborne}")
+
         tau = np.zeros(N_JOINTS * N_LEGS)
 
         # TODO: implement the functions below, and add potential controller parameters as function parameters here
-        tau += nominal_position(simulator,Kp,Kd,Kd_point)
+        if airborne == 1:
+            tau += nominal_position_fly(simulator,Kp,Kd,Kd_point)
+        elif airborne == 0:    
+            tau += nominal_position_ground(simulator,Kp,Kd,Kd_point)
         tau += apply_force_profile(simulator, force_profiles)
         tau += gravity_compensation(simulator)
 
         # If touching the ground, add virtual model
-        foot_contacts = simulator.get_foot_contacts()  # use contact for 4 foot
-        on_ground = any(foot_contacts)  # True if any foot is touching the ground
+        # on_ground = any(foot_contacts)  # True if any foot is touching the ground
+        # for virtual model: when 4 feet on the ground
+        on_ground = all(foot_contacts)
+
         # print(foot_contacts)
         if on_ground:
             tau += virtual_model(simulator,Katt)
@@ -81,21 +106,51 @@ def quadruped_jump():
 Kp = np.diag([400,400,400])
 Kd = np.diag([50,50,50])
 Kd_point = np.diag([0.8,0.8,0.8])
-Katt = 50
+Katt = 500
 
-def nominal_position(
+def nominal_position_ground(
     simulator: QuadSimulator,
     # OPTIONAL: add potential controller parameters here (e.g., gains)
     Kp = np.diag([400,400,400]),
-    Kd = np.diag([8,8,8]),
+    Kd = np.diag([50,50,50]),
     Kd_point = np.diag([0.8,0.8,0.8]),
-    nominal_foot_pos = np.array([0,0,-0.22]),  
+    nominal_foot_pos = np.array([0, 0,-0.10]),  
 ) -> np.ndarray:
     # All motor torques are in a single array
     tau = np.zeros(N_JOINTS * N_LEGS)
     hip_offset_y = simulator.config["com_hip_offset_y"]
-    hip_offset_x = simulator.config["com_hip_offset_x"]
+    #hip_offset_x = simulator.config["com_hip_offset_x"]
     y_offsets = np.array([-hip_offset_y, hip_offset_y, -hip_offset_y, hip_offset_y])
+
+    for leg_id in range(N_LEGS):
+        # #TODO: compute nominal position torques for leg_id
+        J, ee_pos_legFrame =simulator.get_jacobian_and_position(leg_id)
+        
+        motor_vel = simulator.get_motor_velocities(leg_id)
+
+        foot_linvel = J @ motor_vel
+        nominal_foot_pos_i = nominal_foot_pos + y_offsets[leg_id] * np.array([0, 1, 0])
+        # calculate torque
+        tau_i= J.T @ ( Kp @ ( nominal_foot_pos_i - ee_pos_legFrame) + Kd @ (-foot_linvel) )+ Kd_point @(-motor_vel)
+
+        # Store in torques array
+        tau[leg_id * N_JOINTS : leg_id * N_JOINTS + N_JOINTS] = tau_i
+    return tau
+
+def nominal_position_fly(
+    simulator: QuadSimulator,
+    # OPTIONAL: add potential controller parameters here (e.g., gains)
+    Kp = np.diag([400,400,400]),
+    Kd = np.diag([50,50,50]),
+    Kd_point = np.diag([0.8,0.8,0.8]),
+    nominal_foot_pos = np.array([0, 0,-0.10]),  
+) -> np.ndarray:
+    # All motor torques are in a single array
+    stretch_ratio = 1.5
+    tau = np.zeros(N_JOINTS * N_LEGS)
+    hip_offset_y = simulator.config["com_hip_offset_y"]
+    #hip_offset_x = simulator.config["com_hip_offset_x"]
+    y_offsets = np.array([-hip_offset_y*stretch_ratio, hip_offset_y*stretch_ratio, -hip_offset_y*stretch_ratio, hip_offset_y*stretch_ratio])
 
     for leg_id in range(N_LEGS):
         # #TODO: compute nominal position torques for leg_id

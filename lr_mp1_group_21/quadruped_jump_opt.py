@@ -8,10 +8,15 @@ import argparse
 from profiles import FootForceProfile
 
 from quadruped_jump import (
-    nominal_position,
+    nominal_position_ground,
+    nominal_position_fly,
     gravity_compensation,
     apply_force_profile,
     virtual_model,
+    Kp,
+    Kd,
+    Kd_point,
+    Katt,
 )
 
 
@@ -33,7 +38,8 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
 
     # Create a maximization problem
     objective = partial(evaluate_jumping, simulator=simulator, objective_choice=objective_choice)
-    sampler = optuna.samplers.TPESampler(seed=42)
+    # sampler = optuna.samplers.TPESampler(seed=42)
+    sampler = optuna.samplers.TPESampler(seed=52)
     study = optuna.create_study(
         study_name="Quadruped Jumping Optimization",
         sampler=sampler,
@@ -44,7 +50,7 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
     if objective_choice == "distance":
         initial_params = {"Fx": 75.0, "Fz": 225.0, "f0": 1.25}
     elif objective_choice == "lateral_distance":
-        initial_params = {"Fy": 75.0, "Fz": 225.0, "f0": 1.25}
+        initial_params = {"Fy": 60.0, "Fz": 350.0, "f0": 1.25}
     elif objective_choice == "twist":
         initial_params = {"Fx": 75.0, "Fy": 75.0, "f0": 1.25}
     
@@ -53,7 +59,7 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
 
     # Run the optimization
     # You can change the number of trials here (the maximum number of trials is 50)
-    study.optimize(objective, n_trials=20, n_jobs=1)
+    study.optimize(objective, n_trials=50, n_jobs=1)
 
     # Close the simulation
     simulator.close()
@@ -77,23 +83,30 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
         # The parameters that were optimized
         optimized_params = list(successful_trials[0].params.keys())
         num_params = len(optimized_params)
-        
-        fig, axs = plt.subplots(num_params + 1, 1, figsize=(10, 5 * (num_params + 1)), sharex=True)
+
+        # Create 2x2 grid layout
+        fig, axs = plt.subplots(2, 2, figsize=(14, 10), sharex=True)
         fig.suptitle("Optimized Parameters and Objective Value vs. Trial Number")
+
+        # Flatten the 2x2 array for easier indexing
+        axs_flat = axs.flatten()
 
         # Plot optimized parameters
         colors = ['b', 'r', 'g', 'c', 'm', 'y', 'k']
         for i, param_name in enumerate(optimized_params):
             param_values = [t.params[param_name] for t in successful_trials]
-            axs[i].plot(trial_numbers, param_values, marker='o', linestyle='-', color=colors[i % len(colors)])
-            axs[i].set_ylabel(param_name)
-            axs[i].grid(True)
+            axs_flat[i].plot(trial_numbers, param_values, marker='o', linestyle='-', color=colors[i % len(colors)])
+            axs_flat[i].set_ylabel(param_name)
+            axs_flat[i].grid(True)
+            # Add x-label to bottom row
+            if i >= 2:
+                axs_flat[i].set_xlabel("Trial Number")
 
-        # Plot Objective Value
-        axs[num_params].plot(trial_numbers, objective_values, marker='o', linestyle='-', color='purple')
-        axs[num_params].set_ylabel("Objective Value")
-        axs[num_params].set_xlabel("Trial Number")
-        axs[num_params].grid(True)
+        # Plot Objective Value in the last subplot
+        axs_flat[num_params].plot(trial_numbers, objective_values, marker='o', linestyle='-', color='purple')
+        axs_flat[num_params].set_ylabel("Objective Value")
+        axs_flat[num_params].set_xlabel("Trial Number")
+        axs_flat[num_params].grid(True)
 
         plt.tight_layout(rect=[0, 0.03, 1, 0.98]) # Adjust layout to make room for suptitle
         plt.savefig("optimized_params_vs_trials.png")
@@ -101,12 +114,12 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
 
     # Replay and record the best jump
     print("\nReplaying and recording the best jump...")
-    best_video_path = "/home/dzhou20/epfl/legged_robots/epfl-legged-robot-project-2025/lr_mp1_group_21/videos/best_jump.mp4"
-    best_replay_options = SimulationOptions(render=True, on_rack=False, tracking_camera=True, record_video=best_video_path)
+    print("Video will be automatically saved to the 'videos' directory with timestamp.")
+    best_replay_options = SimulationOptions(render=True, on_rack=False, tracking_camera=True, record_video=True)
     best_replay_simulator = QuadSimulator(best_replay_options)
     replay_jump(best_replay_simulator, study.best_params, objective_choice)
     best_replay_simulator.close()
-    print(f"Best jump video saved to {best_video_path}")
+    print(f"Best jump replay completed. Check the 'videos' directory for the recording.")
 
 
     # OPTIONAL: add additional functions here (e.g., plotting, recording to file)
@@ -121,15 +134,16 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
     # the number of four legs: FR(Front Right), FL(Front Left), RR(Rear Right), RL(Rear Left)
     # Parameters are now conditional on the objective
     if objective_choice == "distance":
+        para = 0
         Fx = trial.suggest_float("Fx", 0, 150)
-        Fz = trial.suggest_float("Fz", 150, 350)
+        Fz = trial.suggest_float("Fz", 150 + para, 350 + para)
         f0 = trial.suggest_float("f0", 0.75, 1.75)
         Fy = 0.0
     elif objective_choice == "lateral_distance":
-        Fy = trial.suggest_float("Fy", 0, 150)
-        Fz = trial.suggest_float("Fz", 150, 350)
+        Fy = trial.suggest_float("Fy", 30, 150)
+        Fz = trial.suggest_float("Fz", 250, 450)
         f0 = trial.suggest_float("f0", 0.75, 1.75)
-        Fx = 0.0
+        Fx = -18.0
     elif objective_choice == "twist":
         Fx = trial.suggest_float("Fx", 0, 150)
         Fy = trial.suggest_float("Fy", 0, 150)
@@ -138,7 +152,13 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
     else:
         raise ValueError(f"Invalid objective choice for parameter suggestion: {objective_choice}")
     
-    f1 = 0.5 # This seems to be a constant
+    f1 = 0.8 # This seems to be a constant
+
+    # Print trial parameters
+    print(f"\n{'='*60}")
+    print(f"Trial {trial.number} - Testing parameters:")
+    print(f"  Fx={Fx:.2f}, Fy={Fy:.2f}, Fz={Fz:.2f}, f0={f0:.3f}, f1={f1:.2f}")
+    print(f"{'='*60}")
 
     # Reset the simulation
     simulator.reset()
@@ -147,11 +167,13 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
     sim_options = simulator.options
 
     # Determine number of jumps to simulate
-    n_jumps = 5 # Feel free to change this number
-    
+    # n_jumps = 5 # Feel free to change this number
+    n_jumps = 3  # for lateral jump like quadruped_jump.py
+
     # Using average of f0 for jump duration calculation
     f0_avg = f0
-    jump_duration = 1/(2*f0_avg) + 1/(2*f1)
+    # jump_duration = 1/(2*f0_avg) + 1/(2*f1)
+    jump_duration = 3 # for lateral jump like quadruped_jump.py
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # Create separate profiles for each leg
@@ -162,92 +184,138 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
 
     # The order of legs is FR, FL, RR, RL
     force_profiles = [profile_FR, profile_FL, profile_RR, profile_RL]
-    
+
     base_position_history = []
     contact_history = []
     base_row_pitch_yaw_history = []
-    for _ in range(n_steps):
+    airborne = 0
+
+    # Jump detection state machine
+    jump_state = "INITIAL"  # States: INITIAL, GROUNDED, AIRBORNE
+    jump_distances = []  # Store distance for each successful jump
+    jump_start_pos = None  # Position when jump starts (recorded at takeoff)
+    jump_start_yaw = None  # Yaw angle when jump starts (for twist objective)
+    failed = False  # Whether the robot has failed (tipped over)
+    first_grounded = False  # Track if we've seen the first stable grounded state
+    jump_count = 0  # Count total jumps to skip the first one
+
+    for step_idx in range(n_steps):
         # Step the oscillator
         for profile in force_profiles:
             profile.step(sim_options.timestep)
 
+        # Determine airborne status
+        foot_contacts = simulator.get_foot_contacts()
+        if all(foot_contacts):
+            airborne = 0
+        if not any(foot_contacts):
+            airborne = 1
+
         # Compute torques as motor targets (reuses your controller functions)
         tau = np.zeros(N_JOINTS * N_LEGS)
-        tau += nominal_position(simulator)
+        if airborne == 1:
+            tau += nominal_position_fly(simulator, Kp, Kd, Kd_point)
+        elif airborne == 0:
+            tau += nominal_position_ground(simulator, Kp, Kd, Kd_point)
         tau += apply_force_profile(simulator, force_profiles)
         tau += gravity_compensation(simulator)
 
         # If touching the ground, add virtual model
-        foot_contacts = simulator.get_foot_contacts()
         on_ground = any(foot_contacts)
         if on_ground:
-            tau += virtual_model(simulator)
+            tau += virtual_model(simulator, Katt)
 
         # Set the motor commands and step the simulation
         simulator.set_motor_targets(tau)
         simulator.step()
-        base_position_history.append(simulator.get_base_position())
+
+        # Get current state
+        current_pos = simulator.get_base_position()
+        current_rpy = simulator.get_base_orientation_roll_pitch_yaw()
+        base_position_history.append(current_pos)
         contact_history.append(foot_contacts)
-        base_row_pitch_yaw_history.append(simulator.get_base_orientation_roll_pitch_yaw())
+        base_row_pitch_yaw_history.append(current_rpy)
 
-    base_position_history = np.array(base_position_history)
-    base_row_pitch_yaw_history = np.array(base_row_pitch_yaw_history)
+        # Check for failure (tipped over)
+        roll, pitch = current_rpy[0], current_rpy[1]
+        roll_modify = 8/9
+        if abs(roll) >= np.pi/2 * roll_modify or abs(pitch) >= np.pi/2:
+            failed = True
+            break
 
-    def penalty_roll_pitch(base_row_pitch_yaw_history: np.ndarray) -> float:
-        """Calculate penalty based on roll and pitch deviations from upright position."""
-        roll = base_row_pitch_yaw_history[:, 0]  
-        pitch = base_row_pitch_yaw_history[:, 1]
-        for roll_angle in roll:
-            if abs(roll_angle) > np.pi/3:  # 30 degrees in radians
-                return -100.0  # Large penalty for excessive roll
-        for pitch_angle in pitch:
-            if abs(pitch_angle) > np.pi/3:  # 30 degrees in radians
-                return -100.0  # Large penalty for excessive pitch
-        return 0.0  # No penalty if within limits
-        
+        # Jump state machine
+        all_feet_grounded = all(foot_contacts)
+        all_feet_airborne = not any(foot_contacts)
 
-    def get_max_distance(history: np.ndarray) -> float:
-        """Get the maximum distance covered by the base during the simulation."""
-        initial_pos = history[0]
-        final_pos = history[-1]
-        max_dist_x = final_pos[0] - initial_pos[0]
-        if penalty_roll_pitch(base_row_pitch_yaw_history) < 0:
-            return 0.0
-        return max_dist_x
+        if jump_state == "INITIAL":
+            # Wait for first stable grounded state
+            if all_feet_grounded:
+                first_grounded = True
+                jump_start_pos = current_pos.copy()
+                jump_start_yaw = current_rpy[2]
+                jump_state = "GROUNDED"
 
-    def get_max_lateral_distance(history: np.ndarray) -> float:
-        """Get the maximum lateral distance covered by the base during the simulation."""
-        initial_pos = history[0]
-        final_pos = history[-1]
-        max_dist_y = final_pos[1] - initial_pos[1]
-        if penalty_roll_pitch(base_row_pitch_yaw_history) < 0:
-            return 0.0
-        return abs(max_dist_y)
+        elif jump_state == "GROUNDED":
+            if all_feet_airborne:
+                # Jump started - we already have start position from grounded state
+                jump_state = "AIRBORNE"
 
-    def get_max_twist(rpy_history: np.ndarray) -> float:
-        """Get the maximum twist (yaw change) of the base during the simulation."""
-        initial_orientation = rpy_history[0]
-        final_orientation = rpy_history[-1]
-        yaw_initial = initial_orientation[2]
-        yaw_final = final_orientation[2]
-        if penalty_roll_pitch(base_row_pitch_yaw_history) < 0:
-            return 0.0
-        return abs(yaw_final - yaw_initial)
+        elif jump_state == "AIRBORNE":
+            if all_feet_grounded:
+                # Jump completed - calculate distance
+                jump_end_pos = current_pos.copy()
+                jump_end_yaw = current_rpy[2]
 
-    
+                if objective_choice == "distance":
+                    jump_dist = jump_end_pos[0] - jump_start_pos[0]
+                elif objective_choice == "lateral_distance":
+                    jump_dist = abs(jump_end_pos[1] - jump_start_pos[1])
+                elif objective_choice == "twist":
+                    jump_dist = abs(jump_end_yaw - jump_start_yaw)
 
-    if objective_choice == "distance":
-        objective_value = get_max_distance(base_position_history)
-        print(f"Trial {trial.number}: max distance = {objective_value:.4f} m")
-    elif objective_choice == "lateral_distance":
-        objective_value = get_max_lateral_distance(base_position_history)
-        print(f"Trial {trial.number}: max lateral distance = {objective_value:.4f} m")
-    elif objective_choice == "twist":
-        objective_value = get_max_twist(base_row_pitch_yaw_history)
-        print(f"Trial {trial.number}: max twist = {objective_value:.4f} rad")
+                jump_count += 1
+
+                # Skip the first jump (usually a tiny initial movement ~0.0004m)
+                if jump_count > 1:
+                    jump_distances.append(jump_dist)
+                    print(f"  Jump {len(jump_distances)} completed: distance = {jump_dist:.4f}")
+                else:
+                    print(f"  Jump {jump_count} (initial, skipped): distance = {jump_dist:.4f}")
+
+                # Update start position for next jump
+                jump_start_pos = current_pos.copy()
+                jump_start_yaw = current_rpy[2]
+                jump_state = "GROUNDED"
+
+                # Stop after 5 successful jumps (not counting the first one)
+                if len(jump_distances) >= 5:
+                    break
+
+    # Calculate objective value based on average jump distance
+    print(f"\n{'-'*60}")
+    if failed:
+        objective_value = 0.0
+        print(f"Trial {trial.number} FAILED: Robot tipped over")
+    elif len(jump_distances) == 0:
+        objective_value = 0.0
+        print(f"Trial {trial.number}: No successful jumps completed")
     else:
-        raise ValueError(f"Invalid objective choice: {objective_choice}")
+        # Take up to first 5 jumps and calculate average
+        valid_jumps = jump_distances[:min(5, len(jump_distances))]
+        objective_value = sum(valid_jumps) / len(valid_jumps)
 
+        print(f"Trial {trial.number} Summary:")
+        print(f"  Total jumps completed: {len(valid_jumps)}")
+        print(f"  Jump distances: {[f'{d:.4f}' for d in valid_jumps]}")
+
+        if objective_choice == "distance":
+            print(f"  Average distance: {objective_value:.4f} m")
+        elif objective_choice == "lateral_distance":
+            print(f"  Average lateral distance: {objective_value:.4f} m")
+        elif objective_choice == "twist":
+            print(f"  Average twist: {objective_value:.4f} rad")
+
+    print(f"{'='*60}\n")
     return objective_value
 
 
@@ -266,16 +334,16 @@ def replay_jump(simulator: QuadSimulator, params: dict, objective_choice: str):
         Fy = params["Fy"]
         Fz = params["Fz"]
         f0 = params["f0"]
-        Fx = 0.0
+        Fx = -18.0  # Must match the value in evaluate_jumping
     elif objective_choice == "twist":
         Fx = params["Fx"]
         Fy = params["Fy"]
         f0 = params["f0"]
-        Fz = 225.0
+        Fz = 250.0  # Must match the value in evaluate_jumping
     else:
         raise ValueError(f"Invalid objective choice for replay: {objective_choice}")
 
-    f1 = 0.5  # This seems to be a constant
+    f1 = 0.8  # Must match the value in evaluate_jumping
 
     # Reset the simulation
     simulator.reset()
@@ -284,11 +352,13 @@ def replay_jump(simulator: QuadSimulator, params: dict, objective_choice: str):
     sim_options = simulator.options
 
     # Determine number of jumps to simulate
-    n_jumps = 5 # Simulate for long enough to capture one full jump
-    
+    # n_jumps = 5 # Simulate for long enough to capture one full jump
+    n_jumps = 3  # for lateral jump like quadruped_jump.py
+
     # Using average of f0 for jump duration calculation
-    f0_avg = f0
-    jump_duration = 1/(2*f0_avg) + 1/(2*f1)
+    # f0_avg = f0
+    # jump_duration = 1/(2*f0_avg) + 1/(2*f1)
+    jump_duration = 3 # for lateral jump like quadruped_jump.py
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
     # Create separate profiles for each leg
@@ -299,23 +369,33 @@ def replay_jump(simulator: QuadSimulator, params: dict, objective_choice: str):
 
     # The order of legs is FR, FL, RR, RL
     force_profiles = [profile_FR, profile_FL, profile_RR, profile_RL]
-    
+
+    airborne = 0
     for _ in range(n_steps):
         # Step the oscillator
         for profile in force_profiles:
             profile.step(sim_options.timestep)
 
+        # Determine airborne status
+        foot_contacts = simulator.get_foot_contacts()
+        if all(foot_contacts):
+            airborne = 0
+        if not any(foot_contacts):
+            airborne = 1
+
         # Compute torques as motor targets (reuses your controller functions)
         tau = np.zeros(N_JOINTS * N_LEGS)
-        tau += nominal_position(simulator)
+        if airborne == 1:
+            tau += nominal_position_fly(simulator, Kp, Kd, Kd_point)
+        elif airborne == 0:
+            tau += nominal_position_ground(simulator, Kp, Kd, Kd_point)
         tau += apply_force_profile(simulator, force_profiles)
         tau += gravity_compensation(simulator)
 
         # If touching the ground, add virtual model
-        foot_contacts = simulator.get_foot_contacts()
         on_ground = any(foot_contacts)
         if on_ground:
-            tau += virtual_model(simulator)
+            tau += virtual_model(simulator, Katt)
 
         # Set the motor commands and step the simulation
         simulator.set_motor_targets(tau)

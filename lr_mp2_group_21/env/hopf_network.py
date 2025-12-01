@@ -97,7 +97,7 @@ class HopfNetwork():
 
   def _set_gait(self,gait):
     """ For coupling oscillators in phase space. 
-    [TODO] Update all coupling matrices.
+    [TODO, done by david] Update all coupling matrices.
     """
     # Trot: diagonal legs in phase, anti-phase with other diagonal
     self.PHI_trot = np.array([
@@ -150,12 +150,18 @@ class HopfNetwork():
     else:
       self._integrate_hopf_equations_rl()
     
-    # map CPG variables to Cartesian foot xz positions (Equations 8, 9) 
-    x = np.zeros(4) # [TODO]
-    z = np.zeros(4) # [TODO]
+    # map CPG variables to Cartesian foot xz positions (Equations 8, 9) [TODO, done by david]
+    r = self.X[0,:]
+    theta = self.X[1,:]
+    x = -self._des_step_len * r * np.cos(theta)  # dimesion: 4, foot x positions
+    z = -self._robot_height + np.where(
+        np.sin(theta) > 0,
+        self._ground_clearance * np.sin(theta),   # swing
+        self._ground_penetration * np.sin(theta), # stance
+    )  # dimension: 4, foot z positions
 
     # scale x by step length
-    if not self.use_RL:
+    if not self.use_RL:  # use the manual desired step length
       # use des step len, fixed # [TODO]
       return x, z
     else:
@@ -173,21 +179,25 @@ class HopfNetwork():
     # loop through each leg's oscillator
     for i in range(4):
       # get r_i, theta_i from X
-      r, theta = 0, 0 # [TODO]
+      r, theta = X[:,i]  # [TODO: done by david]
       # compute r_dot (Equation 6)
-      r_dot = 0 # [TODO]
+      r_dot = self._alpha * (self._mu - r**2) * r  # [TODO: done by david]
       # determine whether oscillator i is in swing or stance phase to set natural frequency omega_swing or omega_stance (see Section 3)
-      theta_dot = 0 # [TODO]
+      theta_mod = theta % (2*np.pi)
+      theta_dot = self._omega_swing if theta_mod <= np.pi else self._omega_stance  # [TODO: done by david]
 
       # loop through other oscillators to add coupling (Equation 7)
       if self._couple:
-        theta_dot += 0 # [TODO]
+        for j in range(4):
+          if j == i:
+            continue
+          theta_dot += self._coupling_strength * X[0,j] * np.sin(X[1,j] - theta - self.PHI[i,j])  # [TODO: done by david]
 
       # set X_dot[:,i]
       X_dot[:,i] = [r_dot, theta_dot]
 
     # integrate 
-    self.X = np.zeros((2,4)) # [TODO]
+    self.X = X + (X_dot_prev + X_dot) * self._dt / 2  # trapezoidal integration, [TODO: done by david]
     self.X_dot = X_dot
     # mod phase variables to keep between 0 and 2pi
     self.X[1,:] = self.X[1,:] % (2*np.pi)
@@ -234,9 +244,9 @@ class HopfNetwork():
       # get r_i, theta_i from X
       r, theta = X[:,i]
       # amplitude (use mu from RL, i.e. self._mu_rl[i])
-      r_dot = 0  # [TODO]
+      r_dot = self._alpha * (self._mu_rl[i] - r**2) * r  # TODO: done by david
       # phase (use omega from RL, i.e. self._omega_rl[i])
-      theta_dot = 0 # [TODO]
+      theta_dot = self._omega_rl[i]  # TODO: done by david
 
       X_dot[:,i] = [r_dot, theta_dot]
 

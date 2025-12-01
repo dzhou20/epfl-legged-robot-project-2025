@@ -50,7 +50,7 @@ class HopfNetwork():
                 mu=1**2,                 # intrinsic amplitude, converges to sqrt(mu)
                 omega_swing=5*2*np.pi,   # frequency in swing phase (can edit)
                 omega_stance=2*2*np.pi,  # frequency in stance phase (can edit)
-                gait="TROT",             # Gait, can be TROT, WALK, PACE, BOUND, etc.
+                gait="WALK",             # Gait, can be TROT, WALK, PACE, BOUND, etc.
                 alpha=50,                # amplitude convergence factor
                 coupling_strength=1,     # coefficient to multiply coupling matrix
                 couple=True,             # whether oscillators should be coupled
@@ -110,7 +110,7 @@ class HopfNetwork():
     # Walk gait: 90-deg phase offsets in a crawl sequence, FR leads
     self.PHI_walk = np.array([
           [0,          -np.pi,   -np.pi/2,     np.pi/2],
-          [np.pi/2,    0,        np.pi/2,   1.5*np.pi ],
+          [np.pi,    0,        np.pi/2,   1.5*np.pi ],
           [np.pi/2,      -np.pi/2,    0,        np.pi ],
           [-np.pi/2,  -1.5*np.pi,   -np.pi/2,    0    ],
     ])

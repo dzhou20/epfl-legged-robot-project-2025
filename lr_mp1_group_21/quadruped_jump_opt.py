@@ -46,7 +46,7 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
     elif objective_choice == "lateral_distance":
         initial_params = {"Fy": 75.0, "Fz": 225.0, "f0": 1.25}
     elif objective_choice == "twist":
-        initial_params = {"Fx": 75.0, "Fy": 75.0, "f0": 1.25}
+        initial_params = {"Fy_front": 75.0, "Fz": 225.0, "f0": 1.25}
     
     if 'initial_params' in locals():
         study.enqueue_trial(initial_params)
@@ -119,26 +119,35 @@ def quadruped_jump_optimization(objective_choice: str = "height"):
 
 def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: str) -> float:
     # the number of four legs: FR(Front Right), FL(Front Left), RR(Rear Right), RL(Rear Left)
-    # Parameters are now conditional on the objective
+    # Common parameters
+    f0 = trial.suggest_float("f0", 0.75, 1.75)
+    f1 = 1.25 # This seems to be a constant
+
+    # Objective-specific parameters and profiles
     if objective_choice == "distance":
         Fx = trial.suggest_float("Fx", 0, 150)
         Fz = trial.suggest_float("Fz", 150, 350)
-        f0 = trial.suggest_float("f0", 0.75, 1.75)
         Fy = 0.0
+        profile = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
+        force_profiles = [profile] * 4
+    
     elif objective_choice == "lateral_distance":
-        Fy = trial.suggest_float("Fy", 0, 150)
+        Fy = trial.suggest_float("Fy", -150, 150)
         Fz = trial.suggest_float("Fz", 150, 350)
-        f0 = trial.suggest_float("f0", 0.75, 1.75)
         Fx = 0.0
+        profile = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
+        force_profiles = [profile] * 4
+    
     elif objective_choice == "twist":
-        Fx = trial.suggest_float("Fx", 0, 150)
-        Fy = trial.suggest_float("Fy", 0, 150)
-        f0 = trial.suggest_float("f0", 0.75, 1.75)
-        Fz = 250.0  # Using a fixed, balanced value for Fz
+        Fy_front = trial.suggest_float("Fy_front", 0, 150)
+        Fz = trial.suggest_float("Fz", 150, 350)
+        Fx = 0.0
+        Fy_rear = -Fy_front
+        profile_front = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy_front, Fz=Fz)
+        profile_rear = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy_rear, Fz=Fz)
+        force_profiles = [profile_front, profile_front, profile_rear, profile_rear]
     else:
         raise ValueError(f"Invalid objective choice for parameter suggestion: {objective_choice}")
-    
-    f1 = 0.5 # This seems to be a constant
 
     # Reset the simulation
     simulator.reset()
@@ -147,21 +156,15 @@ def evaluate_jumping(trial: Trial, simulator: QuadSimulator, objective_choice: s
     sim_options = simulator.options
 
     # Determine number of jumps to simulate
-    n_jumps = 5 # Feel free to change this number
-    
+    n_jumps = 5  # Simulate for 5 jumps
+
     # Using average of f0 for jump duration calculation
     f0_avg = f0
     jump_duration = 1/(2*f0_avg) + 1/(2*f1)
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
-    # Create separate profiles for each leg
-    profile_FR = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
-    profile_FL = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
-    profile_RR = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
-    profile_RL = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
-
     # The order of legs is FR, FL, RR, RL
-    force_profiles = [profile_FR, profile_FL, profile_RR, profile_RL]
+
     
     base_position_history = []
     contact_history = []
@@ -256,26 +259,33 @@ def replay_jump(simulator: QuadSimulator, params: dict, objective_choice: str):
     Simulates a jump with the given parameters.
     This function is used to replay the best jump found during optimization.
     """
-    # Extract parameters based on objective
+    # Common parameters
+    f0 = params["f0"]
+    f1 = 1.25 # This seems to be a constant
+
+    # Objective-specific parameters and profiles
     if objective_choice == "distance":
         Fx = params["Fx"]
         Fz = params["Fz"]
-        f0 = params["f0"]
         Fy = 0.0
+        profile = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
+        force_profiles = [profile] * 4
     elif objective_choice == "lateral_distance":
         Fy = params["Fy"]
         Fz = params["Fz"]
-        f0 = params["f0"]
         Fx = 0.0
+        profile = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
+        force_profiles = [profile] * 4
     elif objective_choice == "twist":
-        Fx = params["Fx"]
-        Fy = params["Fy"]
-        f0 = params["f0"]
-        Fz = 225.0
+        Fy_front = params["Fy_front"]
+        Fz = params["Fz"]
+        Fx = 0.0
+        Fy_rear = -Fy_front
+        profile_front = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy_front, Fz=Fz)
+        profile_rear = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy_rear, Fz=Fz)
+        force_profiles = [profile_front, profile_front, profile_rear, profile_rear]
     else:
         raise ValueError(f"Invalid objective choice for replay: {objective_choice}")
-
-    f1 = 0.5  # This seems to be a constant
 
     # Reset the simulation
     simulator.reset()
@@ -284,21 +294,14 @@ def replay_jump(simulator: QuadSimulator, params: dict, objective_choice: str):
     sim_options = simulator.options
 
     # Determine number of jumps to simulate
-    n_jumps = 5 # Simulate for long enough to capture one full jump
+    n_jumps = 5 # Simulate for 5 jumps
     
     # Using average of f0 for jump duration calculation
     f0_avg = f0
     jump_duration = 1/(2*f0_avg) + 1/(2*f1)
     n_steps = int(n_jumps * jump_duration / sim_options.timestep)
 
-    # Create separate profiles for each leg
-    profile_FR = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
-    profile_FL = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
-    profile_RR = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
-    profile_RL = FootForceProfile(f0=f0, f1=f1, Fx=Fx, Fy=Fy, Fz=Fz)
-
     # The order of legs is FR, FL, RR, RL
-    force_profiles = [profile_FR, profile_FL, profile_RR, profile_RL]
     
     for _ in range(n_steps):
         # Step the oscillator

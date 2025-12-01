@@ -114,16 +114,17 @@ for j in range(TEST_STEPS):
     # add Cartesian PD contribution
     if ADD_CARTESIAN_PD:
       # Get desired xyz position in leg frame (use ComputeJacobianAndPosition with the joint angles you just found above)
-      # [TODO] 
+      J_des, p_des = env.robot.ComputeJacobianAndPosition(i, specific_q=leg_q)
 
       # Get current Jacobian and foot position in leg frame (see ComputeJacobianAndPosition() in quadruped.py)
-      # [TODO] 
+      J_curr, p_curr = env.robot.ComputeJacobianAndPosition(i, specific_q=q[3*i:3*i+3])
 
       # Get current foot velocity in leg frame (Equation 2)
-      # [TODO] 
+      v_curr = J_curr @ dq[3*i:3*i+3]  # [TODO: done by david] 
 
       # Calculate torque contribution from Cartesian PD (Equation 5) [Make sure you are using matrix multiplications]
-      tau += np.zeros(3) # [TODO]
+      v_des = np.zeros(3)  # if no explicit desired foot velocity
+      tau += J_curr.T @ (kpCartesian @ (p_des - p_curr) + kdCartesian @ (v_des - v_curr))  # []
 
     # Set tau for legi in action vector
     action[3*i:3*i+3] = tau
@@ -131,15 +132,39 @@ for j in range(TEST_STEPS):
   # send torques to robot and simulate TIME_STEP seconds 
   env.step(action) 
 
-  # [TODO] save any CPG or robot states
+  # [TODO, done by david] save any CPG or robot states
+  cpg_r[:, j] = cpg.get_r()
+  cpg_theta[:, j] = cpg.get_theta()
+  joint_pos[:, j] = q
+  joint_vel[:, j] = dq
+  for i in range(4):
+    _, p_curr = env.robot.ComputeJacobianAndPosition(i, specific_q=q[3*i:3*i+3])
+    foot_pos[i, :, j] = p_curr
 
 ##################################################### 
 # PLOTS
 #####################################################
-# [TODO] Create your plots
+# Plot CPG amplitudes and phases
+fig, axs = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+for i, name in enumerate(["FR", "FL", "RR", "RL"]):
+  axs[0].plot(t, cpg_r[i, :], label=f"{name} r")
+  axs[1].plot(t, cpg_theta[i, :], label=f"{name} theta")
+axs[0].set_ylabel("Amplitude r")
+axs[1].set_ylabel("Phase theta (rad)")
+axs[1].set_xlabel("Time (s)")
+axs[0].legend()
+axs[1].legend()
+axs[0].grid(True)
+axs[1].grid(True)
 
-# example
-# fig = plt.figure()
-# plt.plot(t,joint_pos[1,:], label='FR thigh')
-# plt.legend()
-# plt.show()
+# Plot joint positions for one leg (FR hip/thigh/calf)
+fig2, ax2 = plt.subplots(1, 1, figsize=(10, 3))
+ax2.plot(t, joint_pos[0, :], label="FR hip")
+ax2.plot(t, joint_pos[1, :], label="FR thigh")
+ax2.plot(t, joint_pos[2, :], label="FR calf")
+ax2.set_xlabel("Time (s)")
+ax2.set_ylabel("Joint angle (rad)")
+ax2.legend()
+ax2.grid(True)
+
+plt.show()

@@ -99,10 +99,37 @@ class HopfNetwork():
     """ For coupling oscillators in phase space. 
     [TODO] Update all coupling matrices.
     """
-    self.PHI_trot = np.zeros((4,4)) # [TODO]
-    self.PHI_walk = np.zeros((4,4)) # [TODO]
-    self.PHI_bound = np.zeros((4,4)) # [TODO]
-    self.PHI_pace = np.zeros((4,4)) # [TODO]
+    # Trot: diagonal legs in phase, anti-phase with other diagonal
+    self.PHI_trot = np.array([
+          [0,     np.pi,  np.pi, 0     ],
+          [np.pi, 0,      0,     np.pi ],
+          [np.pi, 0,      0,     np.pi ],
+          [0,     np.pi,  np.pi, 0     ],
+    ])
+
+    # Walk gait: 90-deg phase offsets in a crawl sequence, FR leads
+    self.PHI_walk = np.array([
+          [0,          -np.pi/2,   -np.pi,     -1.5*np.pi],
+          [np.pi/2,    0,          -np.pi/2,   -np.pi   ],
+          [np.pi,      np.pi/2,    0,          -np.pi/2 ],
+          [1.5*np.pi,  np.pi,      np.pi/2,    0        ],
+    ])
+
+    # Bound gait: front legs in-phase, hind legs in-phase, front vs hind out-of-phase
+    self.PHI_bound = np.array([
+          [0,   0,      -np.pi, -np.pi],
+          [0,   0,      -np.pi, -np.pi],
+          [np.pi, np.pi, 0,      0     ],
+          [np.pi, np.pi, 0,      0     ],
+    ])
+
+    # Pace gait: same side in-phase, left vs right out-of-phase
+    self.PHI_pace = np.array([
+          [0,     -np.pi, 0,      -np.pi],
+          [np.pi,  0,     np.pi,   0     ],
+          [0,     -np.pi, 0,      -np.pi],
+          [np.pi,  0,     np.pi,   0     ],
+    ])
 
     if gait == "TROT":
       self.PHI = self.PHI_trot

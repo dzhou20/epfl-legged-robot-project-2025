@@ -66,7 +66,15 @@ cpg = HopfNetwork(time_step=TIME_STEP)
 TEST_STEPS = int(10 / (TIME_STEP))
 t = np.arange(TEST_STEPS)*TIME_STEP
 
-# [TODO] initialize data structures to save CPG and robot states
+# [TODO, doned by david] initialize data structures to save CPG and robot states
+# CPG status logs
+cpg_r = np.zeros((4, TEST_STEPS))
+cpg_theta = np.zeros((4, TEST_STEPS))
+
+# robot status logs
+joint_pos = np.zeros((12, TEST_STEPS))
+joint_vel = np.zeros((12, TEST_STEPS))
+foot_pos = np.zeros((4, 3, TEST_STEPS))
 
 ############## Sample Gains
 # joint PD gains
@@ -84,9 +92,9 @@ for j in range(TEST_STEPS):
   # get desired foot positions from CPG 
   xs,zs = cpg.update()
 
-  # [TODO] get current motor angles and velocities for joint PD, see GetMotorAngles(), GetMotorVelocities() in quadruped.py
-  # q = env.robot.GetMotorAngles()
-  # dq = env.robot.GetMotorVelocities()
+  # [TODO, done by david] get current motor angles and velocities for joint PD, see GetMotorAngles(), GetMotorVelocities() in quadruped.py
+  q = env.robot.GetMotorAngles()
+  dq = env.robot.GetMotorVelocities()
 
   # loop through desired foot positions and calculate torques
   for i in range(4):
@@ -97,10 +105,11 @@ for j in range(TEST_STEPS):
     leg_xyz = np.array([xs[i], sideSign[i] * foot_y, zs[i]])
 
     # call inverse kinematics to get corresponding joint angles (see ComputeInverseKinematics() in quadruped.py)
-    leg_q = np.zeros(3) # [TODO] 
+    leg_q = env.robot.ComputeInverseKinematics(legID=i, xyz_coord=leg_xyz)  # [TODO: done by david]
 
     # Add joint PD contribution to tau for leg i (Equation 4)
-    tau += np.zeros(3) # [TODO] 
+    # leg_q: desired joint angles for leg i from IK
+    tau += kp * (leg_q - q[3*i:3*i+3]) + kd * (0 - dq[3*i:3*i+3])  # [TODO: done by david, maybe not exactly this way]
 
     # add Cartesian PD contribution
     if ADD_CARTESIAN_PD:

@@ -35,11 +35,11 @@ import numpy as np
 import matplotlib
 
 # adapt as needed for your system
-# from sys import platform
-# if platform =="darwin":
-#   matplotlib.use("Qt5Agg")
-# else:
-#   matplotlib.use('TkAgg')
+from sys import platform
+if platform =="darwin":
+  matplotlib.use("Qt5Agg")
+else:
+  matplotlib.use('TkAgg')
 
 from matplotlib import pyplot as plt
 from env.hopf_network import HopfNetwork

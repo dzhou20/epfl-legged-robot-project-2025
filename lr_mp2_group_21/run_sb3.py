@@ -52,7 +52,8 @@ from env.quadruped_gym_env import QuadrupedGymEnv
 LEARNING_ALG = "PPO" # or "SAC"
 LOAD_NN = False # if you want to initialize training with a previous model 
 NUM_ENVS = 1    # how many pybullet environments to create for data collection
-USE_GPU = False # make sure to install all necessary drivers 
+USE_GPU = True # make sure to install all necessary drivers
+# Use the GPU if available, else use CPU
 
 # after implementing, you will want to test how well the agent learns with your MDP: 
 # env_configs = {"motor_control_mode":"CPG",
@@ -60,7 +61,7 @@ USE_GPU = False # make sure to install all necessary drivers
 #                "observation_space_mode": "LR_COURSE_OBS"}
 env_configs = {}
 
-if USE_GPU and LEARNING_ALG=="SAC":
+if USE_GPU:  # and LEARNING_ALG=="SAC":
     gpu_arg = "auto" 
 else:
     gpu_arg = "cpu"

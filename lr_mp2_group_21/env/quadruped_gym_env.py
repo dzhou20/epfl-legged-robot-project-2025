@@ -82,6 +82,10 @@ VIDEO_LOG_DIRECTORY = 'videos/' + datetime.datetime.now().strftime("vid-%Y-%m-%d
 Implemented observation spaces for deep reinforcement learning: 
   "DEFAULT": motor angles and velocities, body orientation
   "LR_COURSE_OBS": [TODO: what should you include? what is reasonable to measure on the real system? CPG states?] 
+
+  -> quadrupe states: velocity (IMU), orientation (IMU), body height
+  -> if using CPG, the CPG states (amplitudes/phases) should be included here
+  -> TBC...
   
 Tasks to be learned with reinforcement learning:
     - "FWD_LOCOMOTION":
@@ -131,7 +135,7 @@ class QuadrupedGymEnv(gym.Env):
       task_env="FWD_LOCOMOTION",
       observation_space_mode="DEFAULT",
       on_rack=False,
-      render=False,
+      render=False,  # no rendering for RL training
       record_video=False,
       add_noise=True,
       terrain=None,
@@ -491,10 +495,10 @@ class QuadrupedGymEnv(gym.Env):
       z = zs[i]
 
       # call inverse kinematics to get corresponding joint angles
-      q_des = np.zeros(3) # [TODO]
+      q_des = self.robot.ComputeInverseKinematics(legID=i, xyz_coord=np.array([x, y, z]))
       
       # Add joint PD contribution to tau
-      tau = np.zeros(3) # [TODO] 
+      tau = kp * (q_des - q[3*i:3*i+3]) + kd * (0 - dq[3*i:3*i+3])
 
       # add Cartesian PD contribution (as you wish)
       # tau +=

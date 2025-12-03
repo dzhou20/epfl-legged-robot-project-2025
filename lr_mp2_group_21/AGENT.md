@@ -1,4 +1,4 @@
-For Legged Robots Mini-Project 2 CPG-RL
+For Legged Robots Mini-Project 2 CPG-RL (Aligned with GenAI Declaration)
 
 # use Chinese to answer the question for me!
 

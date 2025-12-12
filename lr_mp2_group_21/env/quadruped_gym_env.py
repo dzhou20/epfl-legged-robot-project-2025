@@ -228,13 +228,26 @@ class QuadrupedGymEnv(gym.Env):
       observation_low = (np.concatenate((self._robot_config.LOWER_ANGLE_JOINT,
                                          -self._robot_config.VELOCITY_LIMITS,
                                          np.array([-1.0]*4))) -  OBSERVATION_EPS)
+      # the setUp just give the upper and lower bounds for Gym/VecNormalize/policy network
 
     elif self._observation_space_mode == "LR_COURSE_OBS":
       # [TODO] Set observation upper and lower ranges. What are reasonable limits? 
       # Note 50 is arbitrary below, you may have more or less
       # If using CPG-RL, remember to include limits on these
-      observation_high = (np.zeros(50) + OBSERVATION_EPS)
-      observation_low = (np.zeros(50) -  OBSERVATION_EPS)
+      # The observation is passed through VecNomalize, then MLP policy network
+      # Improved Baseline: Follow the suggestions given in paper
+      observation_high = (np.concatenate((self._robot_config.UPPER_ANGLE_JOINT,
+                                         self._robot_config.VELOCITY_LIMITS,
+                                         np.array([1.0]*4),  # quaternion (upper bound)
+                                         np.array([MU_UPP]*4), # CPG amplitudes (upper bound)
+                                         np.array([2*np.pi]*4),  # CPG phases (upper bound
+                                         )) +  OBSERVATION_EPS)
+      observation_low = (np.concatenate((self._robot_config.LOWER_ANGLE_JOINT,
+                                         -self._robot_config.VELOCITY_LIMITS,
+                                         np.array([-1.0]*4),  # quaternion (lower bound)
+                                         np.array([MU_LOW]*4), # CPG amplitudes (lower bound)
+                                         np.array([0.0]*4),  # CPG phases (lower bound)
+                                         )) -  OBSERVATION_EPS)
     
     else:
       raise ValueError("observation space not defined or not intended")

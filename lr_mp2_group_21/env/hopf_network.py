@@ -108,12 +108,7 @@ class HopfNetwork():
     ])
 
     # Walk gait: 90-deg phase offsets in a crawl sequence, FR leads
-    # self.PHI_walk = np.array([
-    #       [0,          np.pi,   np.pi/2,     -np.pi/2],
-    #       [-np.pi,    0,        -np.pi/2,   -1.5*np.pi ],
-    #       [-np.pi/2,      np.pi/2,    0,        -np.pi ],
-    #       [np.pi/2,  1.5*np.pi,   np.pi,    0    ],
-    # ])
+
 
     self.PHI_walk = np.array([
           [0,          -np.pi,   -1.5*np.pi,     -np.pi/2],

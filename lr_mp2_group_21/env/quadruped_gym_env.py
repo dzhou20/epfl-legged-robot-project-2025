@@ -276,7 +276,32 @@ class QuadrupedGymEnv(gym.Env):
       # [TODO] Get observation from robot. What are reasonable measurements we could get on hardware?
       # if using the CPG, you can include states with self._cpg.get_r(), for example
       # 50 is arbitrary
-      self._observation = np.zeros(50)
+      self._observation = np.zeros(36)
+    
+      # Joint states
+      motor_angles = self.robot.GetMotorAngles()          # (12,)
+      motor_vels   = self.robot.GetMotorVelocities()      # (12,)
+
+      # Base states (IMU)
+      base_quat = self.robot.GetBaseOrientation()  # (4,)  [x, y, z, w]
+      base_omega   = self.robot.GetBaseAngularVelocity()          # (3,)
+      base_vel     = self.robot.GetBaseLinearVelocity()           # (3,)
+
+      # CPG states
+      cpg_r        = self._cpg.get_r()        # (4,)
+      cpg_theta    = self._cpg.get_theta()    # (4,)
+
+      self._observation = np.concatenate((
+        motor_angles,
+        motor_vels,
+        base_quat,
+        #base_omega,
+        #base_vel,
+        cpg_r,
+        cpg_theta
+      ))
+  
+  
     else:
       raise ValueError("observation space not defined or not intended")
 

@@ -139,7 +139,7 @@ class QuadrupedGymEnv(gym.Env):
       record_video=False,
       add_noise=True,
       terrain=None,
-      test_flagrun=False, 
+      test_flagrun=False,     
       **kwargs): # any extra arguments from legacy
     """Initialize the quadruped gym environment.
     Args:
@@ -186,6 +186,7 @@ class QuadrupedGymEnv(gym.Env):
     self._test_flagrun = test_flagrun
     self.goal_id = None
     self._terrain = terrain
+    self._desired_velocity=np.array([1,0,0])
     if self._add_noise:
       self._observation_noise_stdev = 0.01 #
     else:

@@ -440,7 +440,10 @@ class QuadrupedGymEnv(gym.Env):
     # Energy / work penalty
     torques = self.robot.GetMotorTorques()
     vels = self.robot.GetMotorVelocities()
-    p_work = np.sum(np.abs(torques * vels))
+    p_work=0
+    for tau,vel in zip(self._dt_motor_torques,self._dt_motor_velocities):
+      p_work += np.abs(np.dot(tau,vel)) 
+    
 
     # -------- Weighted sum --------
     reward = (
@@ -453,7 +456,7 @@ class QuadrupedGymEnv(gym.Env):
     )
 
     # Optional: scale by dt 
-    reward *= self._dt
+    reward *= self._time_step
 
     return reward
 

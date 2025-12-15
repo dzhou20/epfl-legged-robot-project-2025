@@ -204,6 +204,8 @@ class QuadrupedGymEnv(gym.Env):
     # if using CPG
     self.setupCPG()
     self.setupActionSpace()
+    # previous action for observation (initialized to zeros)
+    self._last_action = np.zeros(self._action_dim)
     self.setupObservationSpace()
     if self._is_render:
       self._pybullet_client = bc.BulletClient(connection_mode=pybullet.GUI)
@@ -247,6 +249,7 @@ class QuadrupedGymEnv(gym.Env):
                                          np.array([100.0]*4),  # CPG amplitudes derivative (upper bound)
                                          np.array([2*np.pi]*4),  # CPG phases (upper bound
                                          np.array([100.0]*4),  # CPG phases derivative (upper bound)
+                                         np.array([1.0]*self._action_dim),  # previous action (upper bound)
                                          )) +  OBSERVATION_EPS)
       observation_low = (np.concatenate((self._robot_config.LOWER_ANGLE_JOINT,
                                          -self._robot_config.VELOCITY_LIMITS,
@@ -258,6 +261,7 @@ class QuadrupedGymEnv(gym.Env):
                                          np.array([-100.0]*4),  # CPG amplitudes derivative (lower bound)
                                          np.array([0.0]*4),  # CPG phases (lower bound)
                                          np.array([-100.0]*4),  # CPG phases derivative (lower bound)
+                                         np.array([-1.0]*self._action_dim),  # previous action (lower bound)
                                          )) -  OBSERVATION_EPS)
     
     else:
@@ -318,6 +322,7 @@ class QuadrupedGymEnv(gym.Env):
         cpg_dr,
         cpg_theta,
         cpg_dtheta,
+        self._last_action,
       ))
   
   

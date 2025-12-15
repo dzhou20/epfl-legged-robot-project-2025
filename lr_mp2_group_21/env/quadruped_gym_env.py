@@ -139,7 +139,7 @@ class QuadrupedGymEnv(gym.Env):
       record_video=False,
       add_noise=True,
       terrain=None,
-      test_flagrun=False,     
+      test_flagrun=False, 
       **kwargs): # any extra arguments from legacy
     """Initialize the quadruped gym environment.
     Args:
@@ -186,7 +186,7 @@ class QuadrupedGymEnv(gym.Env):
     self._test_flagrun = test_flagrun
     self.goal_id = None
     self._terrain = terrain
-    self._desired_velocity=np.array([1,0,0])
+    self._desired_velocity = np.array([1,0,0])
     if self._add_noise:
       self._observation_noise_stdev = 0.01 #
     else:
@@ -380,6 +380,7 @@ class QuadrupedGymEnv(gym.Env):
             - 0.01 * energy_reward \
             - 0.1 * np.linalg.norm(self.robot.GetBaseOrientation() - np.array([0,0,0,1]))
 
+
     return max(reward,0) # keep rewards positive
 
   def get_distance_and_angle_to_goal(self):
@@ -436,6 +437,7 @@ class QuadrupedGymEnv(gym.Env):
     # Current robot state
     v_b = self.robot.GetBaseLinearVelocity()      # [vx, vy, vz]
     w_b = self.robot.GetBaseAngularVelocity()     # [wx, wy, wz]
+    p_b = self.robot.GetBasePosition()
 
     # -------- Tracking rewards --------
     def exp_reward(x):
@@ -444,6 +446,7 @@ class QuadrupedGymEnv(gym.Env):
     r_vx = exp_reward(v_des_x - v_b[0])
     r_vy = exp_reward(v_des_y - v_b[1])
     r_wz = exp_reward(w_des_z - w_b[2])
+
 
     # -------- Penalties --------
     p_vz = v_b[2] ** 2                     # vertical velocity
@@ -461,7 +464,8 @@ class QuadrupedGymEnv(gym.Env):
     reward = (
         0.75 * r_vx +
         0.75 * r_vy +
-        0.50 * r_wz
+        0.50 * r_wz +
+        0.10 * p_b
         - 2.00 * p_vz
         - 0.05 * p_wxy
         - 0.001 * p_work

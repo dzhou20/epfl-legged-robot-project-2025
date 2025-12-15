@@ -461,6 +461,7 @@ class QuadrupedGymEnv(gym.Env):
     
 
     # -------- Weighted sum --------
+    # print("0.10 * p_b[0]: ", 0.10 * p_b[0])
     reward = (
         0.75 * r_vx +
         0.75 * r_vy +
@@ -470,7 +471,7 @@ class QuadrupedGymEnv(gym.Env):
         - 0.05 * p_wxy
         - 0.001 * p_work
     )
-
+    # print("reward except p_b:", reward - 0.10 * p_b[0])
     # Optional: scale by dt 
     reward *= self._time_step
 

@@ -63,6 +63,7 @@ env_configs = {
     "motor_control_mode":"PD",  # PD is default, CPG for our project
     "task_env": "LR_COURSE_TASK",
     "observation_space_mode": "LR_COURSE_OBS",
+    # "observation_space_mode": "DEFAULT",
     "add_noise": True,
 }
 
@@ -151,7 +152,7 @@ if LOAD_NN:
 
 # Learn and save (may need to train for longer)
 # Baseline Given in the File: 1000000 timesteps
-model.learn(total_timesteps=300000, log_interval=1,callback=checkpoint_callback)
+model.learn(total_timesteps=1500000, log_interval=1,callback=checkpoint_callback)
 
 # Don't forget to save the VecNormalize statistics when saving the agent
 model.save( os.path.join(SAVE_PATH, "rl_model" ) ) 

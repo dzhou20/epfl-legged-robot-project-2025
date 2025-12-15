@@ -414,8 +414,47 @@ class QuadrupedGymEnv(gym.Env):
   def _reward_lr_course(self):
     """ Implement your reward function here. How will you improve upon the above? """
     # [TODO] add your reward function. 
-    
-    return 0
+
+    """ Reward function based on CPG-RL paper (velocity tracking + stability) """
+
+    # Desired commands
+    v_des_x, v_des_y, w_des_z = self._desired_velocity
+
+    # Current robot state
+    v_b = self.robot.GetBaseLinearVelocity()      # [vx, vy, vz]
+    w_b = self.robot.GetBaseAngularVelocity()     # [wx, wy, wz]
+
+    # -------- Tracking rewards --------
+    def exp_reward(x):
+        return np.exp(-np.square(x) / 0.25)
+
+    r_vx = exp_reward(v_des_x - v_b[0])
+    r_vy = exp_reward(v_des_y - v_b[1])
+    r_wz = exp_reward(w_des_z - w_b[2])
+
+    # -------- Penalties --------
+    p_vz = v_b[2] ** 2                     # vertical velocity
+    p_wxy = w_b[0] ** 2 + w_b[1] ** 2      # roll & pitch rates
+
+    # Energy / work penalty
+    torques = self.robot.GetMotorTorques()
+    vels = self.robot.GetMotorVelocities()
+    p_work = np.sum(np.abs(torques * vels))
+
+    # -------- Weighted sum --------
+    reward = (
+        0.75 * r_vx +
+        0.75 * r_vy +
+        0.50 * r_wz
+        - 2.00 * p_vz
+        - 0.05 * p_wxy
+        - 0.001 * p_work
+    )
+
+    # Optional: scale by dt 
+    reward *= self._dt
+
+    return reward
 
   def _reward(self):
     """ Get reward depending on task"""

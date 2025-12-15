@@ -57,7 +57,8 @@ from utils.file_utils import get_latest_model, load_all_results
 LEARNING_ALG = "PPO" #"SAC"
 interm_dir = "./logs/intermediate_models/"
 # path to saved models, i.e. interm_dir + '102824115106'
-log_dir = interm_dir + ''
+# To Group Members: change the path below to your own log directory (And the Log is not uploaded to the repo for size reason)
+log_dir = interm_dir + '121525142050'
 
 # initialize env configs (render at test time)
 # check ideal conditions, as well as robustness to UNSEEN noise during training
@@ -88,8 +89,9 @@ elif LEARNING_ALG == "SAC":
     model = SAC.load(model_name, env)
 print("\nLoaded model", model_name, "\n")
 
+# obs, info = env.reset()
 obs = env.reset()
-episode_reward = 0
+episode_reward = 0.0
 
 # [TODO] initialize arrays to save data from simulation 
 

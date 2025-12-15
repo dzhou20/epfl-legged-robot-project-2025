@@ -236,10 +236,11 @@ class QuadrupedGymEnv(gym.Env):
       # If using CPG-RL, remember to include limits on these
       # The observation is passed through VecNomalize, then MLP policy network
       # Improved Baseline: Follow the suggestions given in paper
-      observation_high = (np.concatenate((self._robot_config.UPPER_ANGLE_JOINT,
-                                         self._robot_config.VELOCITY_LIMITS,
+      observation_high = (np.concatenate((self._robot_config.UPPER_ANGLE_JOINT,  # angle joints (upper bound, 12)
+                                         self._robot_config.VELOCITY_LIMITS,  # angle velocity (upper bound, 12)
                                          np.array([1.0]*4),  # quaternion (upper bound)
                                          np.array([MU_UPP]*4), # CPG amplitudes (upper bound)
+
                                          np.array([2*np.pi]*4),  # CPG phases (upper bound
                                          )) +  OBSERVATION_EPS)
       observation_low = (np.concatenate((self._robot_config.LOWER_ANGLE_JOINT,

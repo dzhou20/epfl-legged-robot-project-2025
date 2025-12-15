@@ -52,14 +52,18 @@ from env.quadruped_gym_env import QuadrupedGymEnv
 LEARNING_ALG = "PPO" # or "SAC"
 LOAD_NN = False # if you want to initialize training with a previous model 
 NUM_ENVS = 1    # how many pybullet environments to create for data collection
-USE_GPU = True # make sure to install all necessary drivers
+USE_GPU = False # make sure to install all necessary drivers
 # Use the GPU if available, else use CPU
 
 # after implementing, you will want to test how well the agent learns with your MDP: 
 # env_configs = {"motor_control_mode":"CPG",
 #                "task_env": "FWD_LOCOMOTION", #  "LR_COURSE_TASK",
 #                "observation_space_mode": "LR_COURSE_OBS"}
-env_configs = {}
+env_configs = {
+    "motor_control_mode":"PD",  # PD is default, CPG for our project
+    "task_env": "FWD_LOCOMOTION",
+    "add_noise": True,
+}
 
 if USE_GPU:  # and LEARNING_ALG=="SAC":
     gpu_arg = "auto" 
@@ -145,7 +149,8 @@ if LOAD_NN:
     print("\nLoaded model", model_name, "\n")
 
 # Learn and save (may need to train for longer)
-model.learn(total_timesteps=1000000, log_interval=1,callback=checkpoint_callback)
+# Baseline Given in the File: 1000000 timesteps
+model.learn(total_timesteps=300000, log_interval=1,callback=checkpoint_callback)
 
 # Don't forget to save the VecNormalize statistics when saving the agent
 model.save( os.path.join(SAVE_PATH, "rl_model" ) ) 

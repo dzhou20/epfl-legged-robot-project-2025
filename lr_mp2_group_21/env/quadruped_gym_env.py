@@ -239,15 +239,22 @@ class QuadrupedGymEnv(gym.Env):
       observation_high = (np.concatenate((self._robot_config.UPPER_ANGLE_JOINT,  # angle joints (upper bound, 12)
                                          self._robot_config.VELOCITY_LIMITS,  # angle velocity (upper bound, 12)
                                          np.array([1.0]*4),  # quaternion (upper bound)
+                                         np.array([100.0]*3),  # base angular velocity (upper bound)
+                                         np.array([100.0]*3),  # base linear velocity (upper bound)
                                          np.array([MU_UPP]*4), # CPG amplitudes (upper bound)
-
+                                         np.array([100.0]*4),  # CPG amplitudes derivative (upper bound)
                                          np.array([2*np.pi]*4),  # CPG phases (upper bound
+                                         np.array([100.0]*4),  # CPG phases derivative (upper bound)
                                          )) +  OBSERVATION_EPS)
       observation_low = (np.concatenate((self._robot_config.LOWER_ANGLE_JOINT,
                                          -self._robot_config.VELOCITY_LIMITS,
                                          np.array([-1.0]*4),  # quaternion (lower bound)
+                                         np.array([-100.0]*3),  # base angular velocity (lower bound)
+                                         np.array([-100.0]*3),  # base linear velocity (lower bound)
                                          np.array([MU_LOW]*4), # CPG amplitudes (lower bound)
+                                         np.array([-100.0]*4),  # CPG amplitudes derivative (lower bound)
                                          np.array([0.0]*4),  # CPG phases (lower bound)
+                                         np.array([-100.0]*4),  # CPG phases derivative (lower bound)
                                          )) -  OBSERVATION_EPS)
     
     else:
@@ -290,16 +297,20 @@ class QuadrupedGymEnv(gym.Env):
 
       # CPG states
       cpg_r        = self._cpg.get_r()        # (4,)
+      cpg_dr      = self._cpg.get_dr()       # (4,)
       cpg_theta    = self._cpg.get_theta()    # (4,)
+      cpg_dtheta  = self._cpg.get_dtheta()  # (4,)
 
       self._observation = np.concatenate((
         motor_angles,
         motor_vels,
         base_quat,
-        #base_omega,
-        #base_vel,
+        base_omega,
+        base_vel,
         cpg_r,
-        cpg_theta
+        cpg_dr,
+        cpg_theta,
+        cpg_dtheta,
       ))
   
   

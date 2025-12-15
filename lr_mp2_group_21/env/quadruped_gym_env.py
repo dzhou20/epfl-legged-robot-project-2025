@@ -112,7 +112,10 @@ Motor control modes:
         torques are computed based on inverse kinematics + joint PD (or you can add Cartesian PD)
 """
 
-EPISODE_LENGTH = 10   # how long before we reset the environment (max episode length for RL)
+EPISODE_LENGTH = 6   # how long before we reset the environment (max episode length for RL)
+# sometimes latent policies can exploit longer episodes to accumulate rewards (expect shorter EPISODE_LENGTH)
+# simulate step = 10, action_repeat = 10 -> 10 / (10*0.001) = 1000 steps per episode
+# EPISODE_LENGTH changed to 6 for this project
 MAX_FWD_VELOCITY = 1  # to avoid exploiting simulator dynamics, cap max reward for body velocity 
 
 # CPG quantities
@@ -480,11 +483,11 @@ class QuadrupedGymEnv(gym.Env):
       0.10 * p_b[0]
     )
     penalty = (
-        2.00 * p_vz +
+        # 2.00 * p_vz +  # commented out to allow small jumps (now the policy is forwarded with very little vz)
         0.05 * p_wxy +
         0.001 * p_work
     )
-    penalty = penalty / 10.0
+    penalty = penalty / 10.0  # scale down penalties to allow more exploration
     # reward = (
     #     0.75 * r_vx +
     #     0.75 * r_vy +

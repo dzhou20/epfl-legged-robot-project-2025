@@ -465,7 +465,7 @@ class QuadrupedGymEnv(gym.Env):
         0.75 * r_vx +
         0.75 * r_vy +
         0.50 * r_wz +
-        0.10 * p_b
+        0.10 * p_b[0]
         - 2.00 * p_vz
         - 0.05 * p_wxy
         - 0.001 * p_work

@@ -242,6 +242,7 @@ class QuadrupedGymEnv(gym.Env):
                                          np.array([1.0]*4),  # quaternion (upper bound)
                                          np.array([100.0]*3),  # base angular velocity (upper bound)
                                          np.array([100.0]*3),  # base linear velocity (upper bound)
+                                         np.array([1]*4),  # foot contact boolean (upper bound)
                                          np.array([MU_UPP]*4), # CPG amplitudes (upper bound)
                                          np.array([100.0]*4),  # CPG amplitudes derivative (upper bound)
                                          np.array([2*np.pi]*4),  # CPG phases (upper bound
@@ -252,6 +253,7 @@ class QuadrupedGymEnv(gym.Env):
                                          np.array([-1.0]*4),  # quaternion (lower bound)
                                          np.array([-100.0]*3),  # base angular velocity (lower bound)
                                          np.array([-100.0]*3),  # base linear velocity (lower bound)
+                                         np.array([0]*4),  # foot contact boolean (lower bound)
                                          np.array([MU_LOW]*4), # CPG amplitudes (lower bound)
                                          np.array([-100.0]*4),  # CPG amplitudes derivative (lower bound)
                                          np.array([0.0]*4),  # CPG phases (lower bound)
@@ -285,7 +287,7 @@ class QuadrupedGymEnv(gym.Env):
       # [TODO] Get observation from robot. What are reasonable measurements we could get on hardware?
       # if using the CPG, you can include states with self._cpg.get_r(), for example
       # 50 is arbitrary
-      self._observation = np.zeros(36)
+      # self._observation = np.zeros(36)
     
       # Joint states
       motor_angles = self.robot.GetMotorAngles()          # (12,)
@@ -295,6 +297,9 @@ class QuadrupedGymEnv(gym.Env):
       base_quat = self.robot.GetBaseOrientation()  # (4,)  [x, y, z, w]
       base_omega   = self.robot.GetBaseAngularVelocity()          # (3,)
       base_vel     = self.robot.GetBaseLinearVelocity()           # (3,)
+
+      # foot boolean
+      _, _, _, foot_boolean = self.robot.GetContactInfo()  # (4, )
 
       # CPG states
       cpg_r        = self._cpg.get_r()        # (4,)
@@ -308,6 +313,7 @@ class QuadrupedGymEnv(gym.Env):
         base_quat,
         base_omega,
         base_vel,
+        foot_boolean,
         cpg_r,
         cpg_dr,
         cpg_theta,

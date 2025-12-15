@@ -245,10 +245,10 @@ class QuadrupedGymEnv(gym.Env):
                                          np.array([100.0]*3),  # base angular velocity (upper bound)
                                          np.array([100.0]*3),  # base linear velocity (upper bound)
                                          np.array([1]*4),  # foot contact boolean (upper bound)
-                                         np.array([MU_UPP]*4), # CPG amplitudes (upper bound)
-                                         np.array([100.0]*4),  # CPG amplitudes derivative (upper bound)
-                                         np.array([2*np.pi]*4),  # CPG phases (upper bound
-                                         np.array([100.0]*4),  # CPG phases derivative (upper bound)
+                                        #  np.array([MU_UPP]*4), # CPG amplitudes (upper bound)
+                                        #  np.array([100.0]*4),  # CPG amplitudes derivative (upper bound)
+                                        #  np.array([2*np.pi]*4),  # CPG phases (upper bound
+                                        #  np.array([100.0]*4),  # CPG phases derivative (upper bound)
                                          np.array([1.0]*self._action_dim),  # previous action (upper bound)
                                          )) +  OBSERVATION_EPS)
       observation_low = (np.concatenate((self._robot_config.LOWER_ANGLE_JOINT,
@@ -257,10 +257,10 @@ class QuadrupedGymEnv(gym.Env):
                                          np.array([-100.0]*3),  # base angular velocity (lower bound)
                                          np.array([-100.0]*3),  # base linear velocity (lower bound)
                                          np.array([0]*4),  # foot contact boolean (lower bound)
-                                         np.array([MU_LOW]*4), # CPG amplitudes (lower bound)
-                                         np.array([-100.0]*4),  # CPG amplitudes derivative (lower bound)
-                                         np.array([0.0]*4),  # CPG phases (lower bound)
-                                         np.array([-100.0]*4),  # CPG phases derivative (lower bound)
+                                        #  np.array([MU_LOW]*4), # CPG amplitudes (lower bound)
+                                        #  np.array([-100.0]*4),  # CPG amplitudes derivative (lower bound)
+                                        #  np.array([0.0]*4),  # CPG phases (lower bound)
+                                        #  np.array([-100.0]*4),  # CPG phases derivative (lower bound)
                                          np.array([-1.0]*self._action_dim),  # previous action (lower bound)
                                          )) -  OBSERVATION_EPS)
     
@@ -306,10 +306,10 @@ class QuadrupedGymEnv(gym.Env):
       _, _, _, foot_boolean = self.robot.GetContactInfo()  # (4, )
 
       # CPG states
-      cpg_r        = self._cpg.get_r()        # (4,)
-      cpg_dr      = self._cpg.get_dr()       # (4,)
-      cpg_theta    = self._cpg.get_theta()    # (4,)
-      cpg_dtheta  = self._cpg.get_dtheta()  # (4,)
+      # cpg_r        = self._cpg.get_r()        # (4,)
+      # cpg_dr      = self._cpg.get_dr()       # (4,)
+      # cpg_theta    = self._cpg.get_theta()    # (4,)
+      # cpg_dtheta  = self._cpg.get_dtheta()  # (4,)
 
       self._observation = np.concatenate((
         motor_angles,
@@ -318,10 +318,10 @@ class QuadrupedGymEnv(gym.Env):
         base_omega,
         base_vel,
         foot_boolean,
-        cpg_r,
-        cpg_dr,
-        cpg_theta,
-        cpg_dtheta,
+        # cpg_r,
+        # cpg_dr,
+        # cpg_theta,
+        # cpg_dtheta,
         self._last_action,
       ))
   
@@ -473,16 +473,30 @@ class QuadrupedGymEnv(gym.Env):
 
     # -------- Weighted sum --------
     # print("0.10 * p_b[0]: ", 0.10 * p_b[0])
-    reward = (
-        0.75 * r_vx +
-        0.75 * r_vy +
-        0.50 * r_wz +
-        0.10 * p_b[0]
-        - 2.00 * p_vz
-        - 0.05 * p_wxy
-        - 0.001 * p_work
+    reward_pos = (
+      0.75 * r_vx +
+      0.75 * r_vy +
+      0.50 * r_wz +
+      0.10 * p_b[0]
     )
-    # print("reward except p_b:", reward - 0.10 * p_b[0])
+    penalty = (
+        2.00 * p_vz +
+        0.05 * p_wxy +
+        0.001 * p_work
+    )
+    penalty = penalty / 10.0
+    # reward = (
+    #     0.75 * r_vx +
+    #     0.75 * r_vy +
+    #     0.50 * r_wz +
+    #     0.10 * p_b[0]
+    #     - 2.00 * p_vz
+    #     - 0.05 * p_wxy
+    #     - 0.001 * p_work
+    # )
+    reward = reward_pos - penalty
+    # print("reward_pos: ", reward_pos)
+    # print("penalty: ", penalty)
     # Optional: scale by dt 
     reward *= self._time_step
 

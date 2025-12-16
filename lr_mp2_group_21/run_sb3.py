@@ -60,7 +60,8 @@ USE_GPU = False # make sure to install all necessary drivers
 #                "task_env": "FWD_LOCOMOTION", #  "LR_COURSE_TASK",
 #                "observation_space_mode": "LR_COURSE_OBS"}
 env_configs = {
-    "motor_control_mode":"PD",  # PD is default, CPG for our project
+    "motor_control_mode":"CPG",  # PD is default, CPG for our project
+    # should be modified with run_sb3.py
     "task_env": "LR_COURSE_TASK",
     "observation_space_mode": "LR_COURSE_OBS",
     # "observation_space_mode": "DEFAULT",

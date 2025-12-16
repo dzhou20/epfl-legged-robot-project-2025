@@ -245,25 +245,25 @@ class QuadrupedGymEnv(gym.Env):
       observation_high = (np.concatenate((self._robot_config.UPPER_ANGLE_JOINT,  # angle joints (upper bound, 12)
                                          self._robot_config.VELOCITY_LIMITS,  # angle velocity (upper bound, 12)
                                          np.array([1.0]*4),  # quaternion (upper bound)
-                                         np.array([100.0]*3),  # base angular velocity (upper bound)
-                                         np.array([100.0]*3),  # base linear velocity (upper bound)
+                                         np.array([10.0]*3),  # base angular velocity (upper bound)
+                                         np.array([10.0]*3),  # base linear velocity (upper bound)
                                          np.array([1]*4),  # foot contact boolean (upper bound)
-                                        #  np.array([MU_UPP]*4), # CPG amplitudes (upper bound)
-                                        #  np.array([100.0]*4),  # CPG amplitudes derivative (upper bound)
-                                        #  np.array([2*np.pi]*4),  # CPG phases (upper bound
-                                        #  np.array([100.0]*4),  # CPG phases derivative (upper bound)
+                                         np.array([MU_UPP]*4), # CPG amplitudes (upper bound)
+                                         np.array([30.0]*4),  # CPG amplitudes derivative (upper bound)
+                                         np.array([2*np.pi]*4),  # CPG phases (upper bound
+                                         np.array([40.0]*4),  # CPG phases derivative (upper bound)
                                          np.array([1.0]*self._action_dim),  # previous action (upper bound)
                                          )) +  OBSERVATION_EPS)
       observation_low = (np.concatenate((self._robot_config.LOWER_ANGLE_JOINT,
                                          -self._robot_config.VELOCITY_LIMITS,
                                          np.array([-1.0]*4),  # quaternion (lower bound)
-                                         np.array([-100.0]*3),  # base angular velocity (lower bound)
-                                         np.array([-100.0]*3),  # base linear velocity (lower bound)
+                                         np.array([-10.0]*3),  # base angular velocity (lower bound)
+                                         np.array([-10.0]*3),  # base linear velocity (lower bound)
                                          np.array([0]*4),  # foot contact boolean (lower bound)
-                                        #  np.array([MU_LOW]*4), # CPG amplitudes (lower bound)
-                                        #  np.array([-100.0]*4),  # CPG amplitudes derivative (lower bound)
-                                        #  np.array([0.0]*4),  # CPG phases (lower bound)
-                                        #  np.array([-100.0]*4),  # CPG phases derivative (lower bound)
+                                         np.array([MU_LOW]*4), # CPG amplitudes (lower bound)
+                                         np.array([-30.0]*4),  # CPG amplitudes derivative (lower bound)
+                                         np.array([0.0]*4),  # CPG phases (lower bound)
+                                         np.array([-40.0]*4),  # CPG phases derivative (lower bound)
                                          np.array([-1.0]*self._action_dim),  # previous action (lower bound)
                                          )) -  OBSERVATION_EPS)
     
@@ -303,16 +303,18 @@ class QuadrupedGymEnv(gym.Env):
       # Base states (IMU)
       base_quat = self.robot.GetBaseOrientation()  # (4,)  [x, y, z, w]
       base_omega   = self.robot.GetBaseAngularVelocity()          # (3,)
+      # print("base_omega: ", base_omega)
       base_vel     = self.robot.GetBaseLinearVelocity()           # (3,)
+      # print("base_vel: ", base_vel)
 
       # foot boolean
       _, _, _, foot_boolean = self.robot.GetContactInfo()  # (4, )
 
       # CPG states
-      # cpg_r        = self._cpg.get_r()        # (4,)
-      # cpg_dr      = self._cpg.get_dr()       # (4,)
-      # cpg_theta    = self._cpg.get_theta()    # (4,)
-      # cpg_dtheta  = self._cpg.get_dtheta()  # (4,)
+      cpg_r        = self._cpg.get_r()        # (4,)
+      cpg_dr      = self._cpg.get_dr()       # (4,)
+      cpg_theta    = self._cpg.get_theta()    # (4,)
+      cpg_dtheta  = self._cpg.get_dtheta()  # (4,)
 
       self._observation = np.concatenate((
         motor_angles,
@@ -321,10 +323,10 @@ class QuadrupedGymEnv(gym.Env):
         base_omega,
         base_vel,
         foot_boolean,
-        # cpg_r,
-        # cpg_dr,
-        # cpg_theta,
-        # cpg_dtheta,
+        cpg_r,
+        cpg_dr,
+        cpg_theta,
+        cpg_dtheta,
         self._last_action,
       ))
   
@@ -482,11 +484,13 @@ class QuadrupedGymEnv(gym.Env):
       0.50 * r_wz +
       0.10 * p_b[0]
     )
+    bool_is_fallen = self.is_fallen()  # if the robot is fallen, minus large reward
     penalty = (
         # 2.00 * p_vz +  # commented out to allow small jumps (now the policy is forwarded with very little vz)
         0.05 * p_wxy +
         0.001 * p_work
     )
+    penalty += bool_is_fallen * 100.0  # large penalty for falling
     penalty = penalty / 10.0  # scale down penalties to allow more exploration
     # reward = (
     #     0.75 * r_vx +
@@ -605,8 +609,9 @@ class QuadrupedGymEnv(gym.Env):
     sideSign = np.array([-1, 1, -1, 1]) # get correct hip sign (body right is negative)
     
     # get motor kp and kd gains (can be modified)
-    kp = self._robot_config.MOTOR_KP # careful of size!
-    kd = self._robot_config.MOTOR_KD
+    # changed to np.array to allow indexing
+    kp = np.array(self._robot_config.MOTOR_KP)  # shape (12,)
+    kd = np.array(self._robot_config.MOTOR_KD)  # shape (12,)
     
     # get current motor velocities
     q = self.robot.GetMotorAngles()
@@ -624,7 +629,10 @@ class QuadrupedGymEnv(gym.Env):
       q_des = self.robot.ComputeInverseKinematics(legID=i, xyz_coord=np.array([x, y, z]))
       
       # Add joint PD contribution to tau
-      tau = kp * (q_des - q[3*i:3*i+3]) + kd * (0 - dq[3*i:3*i+3])
+      # follow to allow the CPG computation
+      kp_leg = kp[3*i:3*i+3]
+      kd_leg = kd[3*i:3*i+3]
+      tau = kp_leg * (q_des - q[3*i:3*i+3]) + kd_leg * (0 - dq[3*i:3*i+3])
 
       # add Cartesian PD contribution (as you wish)
       # tau +=

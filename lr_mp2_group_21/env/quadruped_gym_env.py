@@ -245,8 +245,8 @@ class QuadrupedGymEnv(gym.Env):
       observation_high = (np.concatenate((self._robot_config.UPPER_ANGLE_JOINT,  # angle joints (upper bound, 12)
                                          self._robot_config.VELOCITY_LIMITS,  # angle velocity (upper bound, 12)
                                          np.array([1.0]*4),  # quaternion (upper bound)
-                                         np.array([10.0]*3),  # base angular velocity (upper bound)
-                                         np.array([10.0]*3),  # base linear velocity (upper bound)
+                                         np.array([5.0]*3),  # base angular velocity (upper bound)
+                                         np.array([3.0]*3),  # base linear velocity (upper bound)
                                          np.array([1]*4),  # foot contact boolean (upper bound)
                                          np.array([MU_UPP]*4), # CPG amplitudes (upper bound)
                                          np.array([30.0]*4),  # CPG amplitudes derivative (upper bound)
@@ -257,8 +257,8 @@ class QuadrupedGymEnv(gym.Env):
       observation_low = (np.concatenate((self._robot_config.LOWER_ANGLE_JOINT,
                                          -self._robot_config.VELOCITY_LIMITS,
                                          np.array([-1.0]*4),  # quaternion (lower bound)
-                                         np.array([-10.0]*3),  # base angular velocity (lower bound)
-                                         np.array([-10.0]*3),  # base linear velocity (lower bound)
+                                         np.array([-5.0]*3),  # base angular velocity (lower bound)
+                                         np.array([-3.0]*3),  # base linear velocity (lower bound)
                                          np.array([0]*4),  # foot contact boolean (lower bound)
                                          np.array([MU_LOW]*4), # CPG amplitudes (lower bound)
                                          np.array([-30.0]*4),  # CPG amplitudes derivative (lower bound)
@@ -346,7 +346,11 @@ class QuadrupedGymEnv(gym.Env):
     return observation
 
   def _get_info(self) -> dict:
-    return {'base_pos': self.robot.GetBasePosition()} 
+    return {
+      'base_pos': self.robot.GetBasePosition(),
+      'base_vel': self.robot.GetBaseLinearVelocity(),
+      'base_ang_vel': self.robot.GetBaseAngularVelocity(),
+    }
 
   ######################################################################################
   # Termination and reward

@@ -65,7 +65,7 @@ env_configs = {
     "task_env": "LR_COURSE_TASK",
     "observation_space_mode": "LR_COURSE_OBS",
     # "observation_space_mode": "DEFAULT",
-    "add_noise": True,
+    "add_noise": False,
 }
 
 if USE_GPU:  # and LEARNING_ALG=="SAC":

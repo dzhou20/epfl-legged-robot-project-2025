@@ -57,7 +57,7 @@ from utils.file_utils import get_latest_model, load_all_results
 LEARNING_ALG = "PPO" #"SAC"
 interm_dir = "./logs/intermediate_models/"
 # path to saved models, i.e. interm_dir + 
-log_dir = interm_dir + '121625151137'
+log_dir = interm_dir + '121625162359'
 
 # initialize env configs (render at test time)
 # check ideal conditions, as well as robustness to UNSEEN noise during training
@@ -66,7 +66,8 @@ env_config = {
     "task_env": "LR_COURSE_TASK",
     "observation_space_mode": "LR_COURSE_OBS",
     # "observation_space_mode": "FWD_LOCOMOTION",
-    # "add_noise": True,
+    "add_noise": False,
+    # add_noise will be set to False to make policy learning faster
 }
 env_config['render'] = True
 env_config['record_video'] = False
@@ -98,19 +99,63 @@ print("\nLoaded model", model_name, "\n")
 obs = env.reset()
 episode_reward = 0.0
 
-# [TODO] initialize arrays to save data from simulation 
+# initialize arrays to save data from simulation 
+des_hist = []
+vel_hist = []
+wz_hist = []
 
 for i in range(2000):
     action, _states = model.predict(obs,deterministic=False) # sample at test time? ([TODO]: test if the outputs make sense)
     obs, rewards, dones, info = env.step(action)
     episode_reward += rewards
+
+    # log desired and actual velocities
+    des_cmd = env.envs[0].env._desired_velocity.copy()  # [v_des_x, v_des_y, w_des_z]
+    base_vel = info[0].get('base_vel')
+    base_ang_vel = info[0].get('base_ang_vel')
+    des_hist.append(des_cmd)
+    vel_hist.append(base_vel)
+    wz_hist.append(base_ang_vel[2] if base_ang_vel is not None else None)
     
     if dones:
         print('episode_reward', episode_reward)
         print('Final base position', info[0]['base_pos'])
+        print('Final base velocity', info[0].get('base_vel'))
         episode_reward = 0
 
     # [TODO] save data from current robot states for plots 
     # To get base position, for example: env.envs[0].env.robot.GetBasePosition() 
     
 # [TODO] make plots
+
+# visualize desired vs actual velocity tracking
+
+des_hist = np.array(des_hist)
+vel_hist = np.array(vel_hist)
+wz_hist = np.array(wz_hist)
+
+dt = env.get_attr("_time_step")[0] * env.get_attr("_action_repeat")[0]
+t = np.arange(len(des_hist)) * dt
+
+plt.figure()
+plt.plot(t, des_hist[:,0], label='v_des_x')
+plt.plot(t, vel_hist[:,0], label='v_x')
+plt.plot(t, des_hist[:,1], label='v_des_y')
+plt.plot(t, vel_hist[:,1], label='v_y')
+plt.plot(t, des_hist[:,2], label='w_des_z')
+plt.plot(t, wz_hist, label='w_z')
+plt.xlabel('time [s]')
+plt.ylabel('velocity')
+plt.legend()
+plt.title('Desired vs Actual Velocity')
+
+plt.figure()
+plt.plot(t, des_hist[:,0]-vel_hist[:,0], label='vx error')
+plt.plot(t, des_hist[:,1]-vel_hist[:,1], label='vy error')
+plt.plot(t, des_hist[:,2]-wz_hist, label='wz error')
+plt.xlabel('time [s]')
+plt.ylabel('error')
+plt.legend()
+plt.title('Velocity Tracking Error')
+
+plt.show()

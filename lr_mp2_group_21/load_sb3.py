@@ -35,6 +35,7 @@ import time
 import matplotlib
 import matplotlib.pyplot as plt
 from sys import platform
+import datetime
 # may be helpful depending on your system
 # if platform =="darwin": # mac
 #   import PyQt5
@@ -57,7 +58,7 @@ from utils.file_utils import get_latest_model, load_all_results
 LEARNING_ALG = "PPO" #"SAC"
 interm_dir = "./logs/intermediate_models/"
 # path to saved models, i.e. interm_dir + 
-log_dir = interm_dir + '121625162359'
+log_dir = interm_dir + '121625174143'
 
 # initialize env configs (render at test time)
 # check ideal conditions, as well as robustness to UNSEEN noise during training
@@ -103,6 +104,7 @@ episode_reward = 0.0
 des_hist = []
 vel_hist = []
 wz_hist = []
+rew_hist = []
 
 for i in range(2000):
     action, _states = model.predict(obs,deterministic=False) # sample at test time? ([TODO]: test if the outputs make sense)
@@ -113,12 +115,15 @@ for i in range(2000):
     des_cmd = env.envs[0].env._desired_velocity.copy()  # [v_des_x, v_des_y, w_des_z]
     base_vel = info[0].get('base_vel')
     base_ang_vel = info[0].get('base_ang_vel')
+    rew_comp = info[0].get('reward_components')
     des_hist.append(des_cmd)
     vel_hist.append(base_vel)
     wz_hist.append(base_ang_vel[2] if base_ang_vel is not None else None)
+    rew_hist.append(rew_comp)
     
     if dones:
-        print('episode_reward', episode_reward)
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f'[{ts}] episode_reward', episode_reward)
         print('Final base position', info[0]['base_pos'])
         print('Final base velocity', info[0].get('base_vel'))
         episode_reward = 0
@@ -133,6 +138,8 @@ for i in range(2000):
 des_hist = np.array(des_hist)
 vel_hist = np.array(vel_hist)
 wz_hist = np.array(wz_hist)
+rew_hist = [r for r in rew_hist if r is not None]
+# rew_hist is a list of reward component dicts
 
 dt = env.get_attr("_time_step")[0] * env.get_attr("_action_repeat")[0]
 t = np.arange(len(des_hist)) * dt
@@ -157,5 +164,17 @@ plt.xlabel('time [s]')
 plt.ylabel('error')
 plt.legend()
 plt.title('Velocity Tracking Error')
+
+# reward breakdown plots (if available)
+if len(rew_hist) == len(t) and len(rew_hist) > 0:
+    keys = list(rew_hist[0].keys())  # auto-detect components
+    plt.figure()
+    for k in keys:
+        series = np.array([r[k] for r in rew_hist])
+        plt.plot(t, series, label=k)
+    plt.xlabel('time [s]')
+    plt.ylabel('reward contribution per step')
+    plt.legend()
+    plt.title('Reward Components')
 
 plt.show()

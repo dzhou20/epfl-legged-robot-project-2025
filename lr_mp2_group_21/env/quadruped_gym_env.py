@@ -350,6 +350,7 @@ class QuadrupedGymEnv(gym.Env):
       'base_pos': self.robot.GetBasePosition(),
       'base_vel': self.robot.GetBaseLinearVelocity(),
       'base_ang_vel': self.robot.GetBaseAngularVelocity(),
+      'reward_components': getattr(self, '_last_reward_components', None),
     }
 
   ######################################################################################
@@ -444,8 +445,47 @@ class QuadrupedGymEnv(gym.Env):
             - 0.001 * energy_reward 
     
     return max(reward,0) # keep rewards positive
-    
+  
   def _reward_lr_course(self):
+    # The simple case for velocity tracking only
+    # vel_tracking_reward = 0.1 * np.clip(self.robot.GetBaseLinearVelocity()[0], 0.2, 1.0)
+    # If you want to track a desired velocity 
+    des_vel_x = self._desired_velocity[0]
+    vel_tracking_reward = 0.05 * np.exp( -1/ 0.25 *  (self.robot.GetBaseLinearVelocity()[0] - des_vel_x)**2 )
+    
+    # minimize yaw (go straight)
+    yaw_reward = -0.2 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[2]) 
+    # minimize pitch (keep body level front-back)
+    pitch_reward = -0.1 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[1])
+    
+    # don't drift laterally 
+    drift_reward = -0.01 * abs(self.robot.GetBasePosition()[1]) 
+    
+    # minimize energy 
+    energy_reward = 0 
+
+    for tau,vel in zip(self._dt_motor_torques,self._dt_motor_velocities):
+      energy_reward += np.abs(np.dot(tau,vel)) * self._time_step
+
+    is_fallen_reward = self.is_fallen()
+
+    reward = vel_tracking_reward \
+            + yaw_reward \
+            + pitch_reward \
+            + drift_reward \
+            - 0.01 * energy_reward \
+            - 0.1 * np.linalg.norm(self.robot.GetBaseOrientation() - np.array([0,0,0,1])) \
+            - 5.0 * is_fallen_reward
+    # print("vel_tracking_reward: ", vel_tracking_reward)
+    # print("yaw_reward: ", yaw_reward)
+    # print("pitch_reward: ", pitch_reward)
+    # print("drift_reward: ", drift_reward)
+    # print("energy_reward: ", -0.01 * energy_reward)
+    # print("is_fallen_reward: ", -5.0 * is_fallen_reward)
+    # print("quanternion norm: ", -0.1*(np.linalg.norm(self.robot.GetBaseOrientation() - np.array([0,0,0,1]))))
+    return reward
+
+  def _reward_lr_course_complicated(self):
     """ Implement your reward function here. How will you improve upon the above? """
     # [TODO] add your reward function. 
 
@@ -509,8 +549,20 @@ class QuadrupedGymEnv(gym.Env):
     # print("reward_pos: ", reward_pos)
     # print("penalty: ", penalty)
     # Optional: scale by dt 
-    reward *= self._time_step
+    dt = self._time_step
+    reward *= dt
 
+    # log reward components for debugging/visualization
+    self._last_reward_components = {
+      'vx': 0.75 * r_vx * dt,
+      'vy': 0.75 * r_vy * dt,
+      'wz': 0.50 * r_wz * dt,
+      'x_term': 0.10 * p_b[0] * dt,
+      'penalty_wxy': -(0.05 * p_wxy / 10.0) * dt,
+      'penalty_work': -(0.001 * p_work / 10.0) * dt,
+      'penalty_fall': -(bool_is_fallen * 100.0 / 10.0) * dt,
+      'total': reward,
+    }
     return reward
 
   def _reward(self):

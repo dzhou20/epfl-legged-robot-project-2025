@@ -36,6 +36,7 @@ Check the documentation! https://stable-baselines3.readthedocs.io/en/master/
 # misc
 import os
 from datetime import datetime
+import time
 
 # stable baselines 3
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
@@ -153,7 +154,10 @@ if LOAD_NN:
 
 # Learn and save (may need to train for longer)
 # Baseline Given in the File: 1000000 timesteps
-model.learn(total_timesteps=1500000, log_interval=1,callback=checkpoint_callback)
+train_start = time.time()
+model.learn(total_timesteps=1500000, log_interval=1, callback=checkpoint_callback)
+train_elapsed = time.time() - train_start
+print(f"Training finished, elapsed: {train_elapsed:.1f} sec (start at {train_start:.0f})")
 
 # Don't forget to save the VecNormalize statistics when saving the agent
 model.save( os.path.join(SAVE_PATH, "rl_model" ) ) 

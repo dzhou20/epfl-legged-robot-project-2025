@@ -35,7 +35,8 @@ import numpy as np
 
 NUM_MOTORS = 12
 
-CONTROL_MODES = [ "TORQUE","PD" ]
+CONTROL_MODES = ["TORQUE", "PD", "JOINT_CARTESIAN_PD"]
+
 
 class QuadrupedMotorModel(object):
   """A simple motor model for a quadruped.
@@ -93,7 +94,7 @@ class QuadrupedMotorModel(object):
 
     # No processing for motor torques
     # Edit: SHOULD still clip torque values
-    if motor_control_mode is "TORQUE":
+    if motor_control_mode == "TORQUE":
       assert len(motor_commands) == NUM_MOTORS
       motor_torques = self._strength_ratios * motor_commands
       motor_torques = np.clip(motor_torques, -1.0 * self._torque_limits,
@@ -106,7 +107,7 @@ class QuadrupedMotorModel(object):
     kp = None
     kd = None
     additional_torques = np.full(NUM_MOTORS, 0)
-    if motor_control_mode is "PD":
+    if motor_control_mode == "PD":
       assert len(motor_commands) == NUM_MOTORS
       kp = self._kp
       kd = self._kd

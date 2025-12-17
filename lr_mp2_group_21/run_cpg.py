@@ -33,6 +33,7 @@
 import time
 import numpy as np
 import matplotlib
+import matplotlib.colors as mcolors
 
 # adapt as needed for your system
 from sys import platform
@@ -55,9 +56,9 @@ env = QuadrupedGymEnv(render=True,              # visualize
                     isRLGymInterface=False,     # not using RL
                     time_step=TIME_STEP,
                     action_repeat=1,
-                    motor_control_mode="TORQUE",
+                    motor_control_mode="PD",
                     add_noise=False,    # start in ideal conditions
-                    # record_video=True
+                    record_video=True
                     )
 
 # initialize Hopf Network, supply gait
@@ -76,9 +77,13 @@ joint_pos = np.zeros((12, TEST_STEPS))
 joint_vel = np.zeros((12, TEST_STEPS))
 foot_pos = np.zeros((4, 3, TEST_STEPS))
 
+#desired state
+joint_pos_des = np.zeros((12, TEST_STEPS))
+foot_pos_des = np.zeros((4, 3, TEST_STEPS))
+
 ############## Sample Gains
 # joint PD gains
-kp=np.array([100,100,100])
+kp=np.array([50,50,50])
 kd=np.array([2,2,2])
 
 # Cartesian PD gains
@@ -106,7 +111,7 @@ for j in range(TEST_STEPS):
 
     # call inverse kinematics to get corresponding joint angles (see ComputeInverseKinematics() in quadruped.py)
     leg_q = env.robot.ComputeInverseKinematics(legID=i, xyz_coord=leg_xyz)  # [TODO: done by david]
-
+    joint_pos_des[3*i:3*i+3, j] = leg_q
     # Add joint PD contribution to tau for leg i (Equation 4)
     # leg_q: desired joint angles for leg i from IK
     tau += kp * (leg_q - q[3*i:3*i+3]) + kd * (0 - dq[3*i:3*i+3])  # [TODO: done by david, maybe not exactly this way]
@@ -131,6 +136,11 @@ for j in range(TEST_STEPS):
 
   # send torques to robot and simulate TIME_STEP seconds 
   env.step(action) 
+  dt = TIME_STEP
+  cpg_r_dot = np.gradient(cpg_r, dt, axis=1)
+  theta_unwrapped = np.unwrap(cpg_theta, axis=1)
+  cpg_theta_dot = np.gradient(theta_unwrapped, dt, axis=1)
+
 
   # [TODO, done by david] save any CPG or robot states
   cpg_r[:, j] = cpg.get_r()
@@ -145,26 +155,75 @@ for j in range(TEST_STEPS):
 # PLOTS
 #####################################################
 # Plot CPG amplitudes and phases
-fig, axs = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-for i, name in enumerate(["FR", "FL", "RR", "RL"]):
-  axs[0].plot(t, cpg_r[i, :], label=f"{name} r")
-  axs[1].plot(t, cpg_theta[i, :], label=f"{name} theta")
-axs[0].set_ylabel("Amplitude r")
-axs[1].set_ylabel("Phase theta (rad)")
-axs[1].set_xlabel("Time (s)")
-axs[0].legend()
-axs[1].legend()
-axs[0].grid(True)
-axs[1].grid(True)
+def darken_color(color, factor=0.6):
+    """
+    factor < 1  → darker
+    factor = 1  → same
+    """
+    rgb = np.array(mcolors.to_rgb(color))
+    return tuple(rgb * factor)
+
+fig, axs = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
+
+leg_names = ["FR", "FL", "RR", "RL"]
+
+
+# --- r ---
+for i, name in enumerate(leg_names):
+    axs[0, 0].plot(t, cpg_r[i, :], label=name)
+axs[0, 0].set_title("CPG Amplitude r")
+axs[0, 0].set_ylabel("r")
+axs[0, 0].legend()
+axs[0, 0].grid(True)
+
+# --- r_dot ---
+for i, name in enumerate(leg_names):
+    axs[0, 1].plot(t, cpg_r_dot[i, :], label=name)
+axs[0, 1].set_title("CPG Amplitude Derivative $\dot r$")
+axs[0, 1].set_ylabel("$\dot r$")
+axs[0, 1].grid(True)
+
+# --- theta ---
+for i, name in enumerate(leg_names):
+    axs[1, 0].plot(t, cpg_theta[i, :], label=name)
+axs[1, 0].set_title("CPG Phase $\\theta$")
+axs[1, 0].set_xlabel("Time (s)")
+axs[1, 0].set_ylabel("$\\theta$ (rad)")
+axs[1, 0].grid(True)
+
+# --- theta_dot ---
+for i, name in enumerate(leg_names):
+    axs[1, 1].plot(t, cpg_theta_dot[i, :], label=name)
+axs[1, 1].set_title("CPG Phase Derivative $\\dot \\theta$")
+axs[1, 1].set_xlabel("Time (s)")
+axs[1, 1].set_ylabel("$\\dot \\theta$ (rad/s)")
+axs[1, 1].grid(True)
+
+plt.tight_layout()
+plt.show()
+
 
 # Plot joint positions for one leg (FR hip/thigh/calf)
 fig2, ax2 = plt.subplots(1, 1, figsize=(10, 3))
-ax2.plot(t, joint_pos[0, :], label="FR hip")
-ax2.plot(t, joint_pos[1, :], label="FR thigh")
-ax2.plot(t, joint_pos[2, :], label="FR calf")
+
+# actual joints
+l1, = ax2.plot(t, joint_pos[0, :], label="FR hip")
+l2, = ax2.plot(t, joint_pos[1, :], label="FR thigh")
+l3, = ax2.plot(t, joint_pos[2, :], label="FR calf")
+
+# dark colors for desired
+c1 = darken_color(l1.get_color(), 0.6)
+c2 = darken_color(l2.get_color(), 0.6)
+c3 = darken_color(l3.get_color(), 0.6)
+
+# desired joints (same color, darker)
+ax2.plot(t, joint_pos_des[0, :], color=c1, linewidth=1.5, label="FR hip (desired)")
+ax2.plot(t, joint_pos_des[1, :], color=c2, linewidth=1.5, label="FR thigh (desired)")
+ax2.plot(t, joint_pos_des[2, :], color=c3, linewidth=1.5, label="FR calf (desired)")
+
 ax2.set_xlabel("Time (s)")
 ax2.set_ylabel("Joint angle (rad)")
-ax2.legend()
+ax2.legend(ncol=2)
 ax2.grid(True)
 
 plt.show()

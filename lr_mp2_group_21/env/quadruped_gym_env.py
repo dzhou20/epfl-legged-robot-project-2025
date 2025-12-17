@@ -50,7 +50,7 @@ import pybullet
 import pybullet_utils.bullet_client as bc
 import pybullet_data
 import random
-random.seed(10)
+random.seed(20)
 
 # quadruped and configs
 import quadruped
@@ -112,7 +112,7 @@ Motor control modes:
         torques are computed based on inverse kinematics + joint PD (or you can add Cartesian PD)
 """
 
-EPISODE_LENGTH = 6   # how long before we reset the environment (max episode length for RL)
+EPISODE_LENGTH = 10   # how long before we reset the environment (max episode length for RL)
 # sometimes latent policies can exploit longer episodes to accumulate rewards (expect shorter EPISODE_LENGTH)
 # simulate step = 10, action_repeat = 10 -> 10 / (10*0.001) = 1000 steps per episode
 # EPISODE_LENGTH changed to 6 for this project
@@ -189,7 +189,7 @@ class QuadrupedGymEnv(gym.Env):
     self._test_flagrun = test_flagrun
     self.goal_id = None
     self._terrain = terrain
-    self._desired_velocity = np.array([1,0,0])
+    self._desired_velocity = np.array([1,1,0])
     if self._add_noise:
       self._observation_noise_stdev = 0.01 #
     else:
@@ -449,17 +449,26 @@ class QuadrupedGymEnv(gym.Env):
   def _reward_lr_course(self):
     # The simple case for velocity tracking only
     # vel_tracking_reward = 0.1 * np.clip(self.robot.GetBaseLinearVelocity()[0], 0.2, 1.0)
-    # If you want to track a desired velocity 
-    des_vel_x = self._desired_velocity[0]
-    vel_tracking_reward = 0.05 * np.exp( -1/ 0.25 *  (self.robot.GetBaseLinearVelocity()[0] - des_vel_x)**2 )
-    
+    # If you want to track a desired velocity
+    v_des_x, v_des_y, w_des_z = self._desired_velocity
+    v_b = self.robot.GetBaseLinearVelocity()
+    w_b = self.robot.GetBaseAngularVelocity()
+    # vel_tracking_reward = 0.05 * np.exp( -1/ 0.25 *  (self.robot.GetBaseLinearVelocity()[0] - des_vel_x)**2 )
+    vx_tracking_reward_linear = np.clip(0.1 * (1 - abs(v_b[0] - v_des_x)), 0.0, 0.1)
+    vy_tracking_reward_linear = np.clip(0.1 * (1 - abs(v_b[1] - v_des_y)), 0.0, 0.1)
+    wz_tracking_reward_linear = np.clip(0.1 * (1 - abs(w_b[2] - w_des_z)), 0.0, 0.1)
+
     # minimize yaw (go straight)
-    yaw_reward = -0.2 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[2]) 
+    # yaw_reward is only work if we want to go straight (x direction)
+    # yaw_reward = -0.2 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[2]) 
+    
+    row_reward = -0.1 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[0])
+
     # minimize pitch (keep body level front-back)
     pitch_reward = -0.1 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[1])
     
     # don't drift laterally 
-    drift_reward = -0.01 * abs(self.robot.GetBasePosition()[1]) 
+    # drift_reward = -0.01 * abs(self.robot.GetBasePosition()[1]) 
     
     # minimize energy 
     energy_reward = 0 
@@ -469,14 +478,17 @@ class QuadrupedGymEnv(gym.Env):
 
     is_fallen_reward = self.is_fallen()
 
-    reward = vel_tracking_reward \
-            + yaw_reward \
+    reward = vx_tracking_reward_linear \
+            + vy_tracking_reward_linear \
+            + wz_tracking_reward_linear \
             + pitch_reward \
-            + drift_reward \
+            + row_reward \
             - 0.01 * energy_reward \
-            - 0.1 * np.linalg.norm(self.robot.GetBaseOrientation() - np.array([0,0,0,1])) \
-            - 5.0 * is_fallen_reward
-    # print("vel_tracking_reward: ", vel_tracking_reward)
+            - 10.0 * is_fallen_reward \
+            # - 0.1 * np.linalg.norm(self.robot.GetBaseOrientation() - np.array([0,0,0,1])) \
+            # directly penalizing roll/pitch/yaw is better
+    # print("reward: ", reward)
+    # print("vel_tracking_reward: ", vel_tracking_reward_linear)
     # print("yaw_reward: ", yaw_reward)
     # print("pitch_reward: ", pitch_reward)
     # print("drift_reward: ", drift_reward)

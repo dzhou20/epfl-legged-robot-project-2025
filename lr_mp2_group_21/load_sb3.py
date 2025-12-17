@@ -58,7 +58,8 @@ from utils.file_utils import get_latest_model, load_all_results
 LEARNING_ALG = "PPO" #"SAC"
 interm_dir = "./logs/intermediate_models/"
 # path to saved models, i.e. interm_dir + 
-log_dir = interm_dir + '121625174143'
+# log_dir = interm_dir + 'velocity_x_follow_without_noise'  # velocity tracking task without noise
+log_dir = interm_dir + '121725135642'
 
 # initialize env configs (render at test time)
 # check ideal conditions, as well as robustness to UNSEEN noise during training

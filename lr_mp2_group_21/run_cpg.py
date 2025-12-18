@@ -56,7 +56,7 @@ env = QuadrupedGymEnv(render=True,              # visualize
                     isRLGymInterface=False,     # not using RL
                     time_step=TIME_STEP,
                     action_repeat=1,
-                    motor_control_mode="PD",
+                    motor_control_mode="TORQUE",
                     add_noise=False,    # start in ideal conditions
                     record_video=True
                     )
@@ -83,7 +83,7 @@ foot_pos_des = np.zeros((4, 3, TEST_STEPS))
 
 ############## Sample Gains
 # joint PD gains
-kp=np.array([50,50,50])
+kp=np.array([100,100,100])
 kd=np.array([2,2,2])
 
 # Cartesian PD gains
@@ -108,6 +108,9 @@ for j in range(TEST_STEPS):
 
     # get desired foot i pos (xi, yi, zi) in leg frame
     leg_xyz = np.array([xs[i], sideSign[i] * foot_y, zs[i]])
+
+    # log desired feet position for plotting
+    foot_pos_des[i, :, j] = leg_xyz
 
     # call inverse kinematics to get corresponding joint angles (see ComputeInverseKinematics() in quadruped.py)
     leg_q = env.robot.ComputeInverseKinematics(legID=i, xyz_coord=leg_xyz)  # [TODO: done by david]
@@ -225,5 +228,50 @@ ax2.set_xlabel("Time (s)")
 ax2.set_ylabel("Joint angle (rad)")
 ax2.legend(ncol=2)
 ax2.grid(True)
+
+plt.show()
+
+
+# Plot foot positions for the same leg (FR)
+fig3, ax3 = plt.subplots(1, 1, figsize=(10, 3))
+
+# actual foot xyz
+lfx, = ax3.plot(t, foot_pos[0, 0, :], label="FR x")
+lfy, = ax3.plot(t, foot_pos[0, 1, :], label="FR y")
+lfz, = ax3.plot(t, foot_pos[0, 2, :], label="FR z")
+
+# darker colors for desired trajectories
+cfx = darken_color(lfx.get_color(), 0.6)
+cfy = darken_color(lfy.get_color(), 0.6)
+cfz = darken_color(lfz.get_color(), 0.6)
+
+ax3.plot(t, foot_pos_des[0, 0, :], color=cfx, linewidth=1.5, label="FR x (desired)")
+ax3.plot(t, foot_pos_des[0, 1, :], color=cfy, linewidth=1.5, label="FR y (desired)")
+ax3.plot(t, foot_pos_des[0, 2, :], color=cfz, linewidth=1.5, label="FR z (desired)")
+
+ax3.set_xlabel("Time (s)")
+ax3.set_ylabel("Foot position (m)")
+ax3.legend(ncol=2)
+ax3.grid(True)
+
+plt.show()
+
+
+# FR leg trajectory in leg frame (x vs z)
+fig4, ax4 = plt.subplots(1, 1, figsize=(5, 5))
+
+# use same color palette for consistency
+leg_color = lfx.get_color()
+leg_color_des = darken_color(leg_color, 0.6)
+
+ax4.plot(foot_pos[0, 0, :], foot_pos[0, 2, :], label="FR foot", color=leg_color)
+ax4.plot(foot_pos_des[0, 0, :], foot_pos_des[0, 2, :], label="FR foot (desired)", color=leg_color_des, linewidth=1.5)
+
+ax4.set_xlabel("x (m)")
+ax4.set_ylabel("z (m)")
+ax4.set_title("FR Foot Trajectory in Leg Frame")
+ax4.legend()
+ax4.grid(True)
+ax4.set_aspect('equal', adjustable='box')
 
 plt.show()

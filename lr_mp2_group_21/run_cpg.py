@@ -50,6 +50,7 @@ ADD_CARTESIAN_PD = True
 TIME_STEP = 0.001
 foot_y = 0.0838 # this is the hip length 
 sideSign = np.array([-1, 1, -1, 1]) # get correct hip sign (body right is negative)
+leg_names = ["FR", "FL", "RR", "RL"]
 
 env = QuadrupedGymEnv(render=True,              # visualize
                     on_rack=False,              # useful for debugging! 
@@ -76,10 +77,15 @@ cpg_theta = np.zeros((4, TEST_STEPS))
 joint_pos = np.zeros((12, TEST_STEPS))
 joint_vel = np.zeros((12, TEST_STEPS))
 foot_pos = np.zeros((4, 3, TEST_STEPS))
+base_pos = np.zeros((TEST_STEPS, 3))
+base_vel = np.zeros((TEST_STEPS, 3))
+feet_contacts = np.zeros((4, TEST_STEPS), dtype=int)
 
 #desired state
 joint_pos_des = np.zeros((12, TEST_STEPS))
 foot_pos_des = np.zeros((4, 3, TEST_STEPS))
+
+mechanical_work = 0.0
 
 ############## Sample Gains
 # joint PD gains
@@ -98,8 +104,8 @@ for j in range(TEST_STEPS):
   xs,zs = cpg.update()
 
   # [TODO, done by david] get current motor angles and velocities for joint PD, see GetMotorAngles(), GetMotorVelocities() in quadruped.py
-  q = env.robot.GetMotorAngles()
-  dq = env.robot.GetMotorVelocities()
+  q = np.asarray(env.robot.GetMotorAngles())
+  dq = np.asarray(env.robot.GetMotorVelocities())
 
   # loop through desired foot positions and calculate torques
   for i in range(4):
@@ -137,6 +143,12 @@ for j in range(TEST_STEPS):
     # Set tau for legi in action vector
     action[3*i:3*i+3] = tau
 
+  base_pos[j, :] = env.robot.GetBasePosition()
+  base_vel[j, :] = env.robot.GetBaseLinearVelocity()
+  _, _, _, contact_bool = env.robot.GetContactInfo()
+  feet_contacts[:, j] = np.asarray(contact_bool)
+  mechanical_work += np.abs(np.dot(action, dq)) * TIME_STEP
+
   # send torques to robot and simulate TIME_STEP seconds 
   env.step(action) 
   dt = TIME_STEP
@@ -154,6 +166,56 @@ for j in range(TEST_STEPS):
     _, p_curr = env.robot.ComputeJacobianAndPosition(i, specific_q=q[3*i:3*i+3])
     foot_pos[i, :, j] = p_curr
 
+final_base_pos = np.asarray(env.robot.GetBasePosition())
+
+def compute_contact_stats(contact_signal, dt):
+  signal = np.asarray(contact_signal, dtype=int)
+  if signal.size == 0:
+    return 0.0, 0.0, 0.0, 0.0
+
+  stance_durations = []
+  swing_durations = []
+  current_state = signal[0]
+  duration = 1
+
+  for val in signal[1:]:
+    if val == current_state:
+      duration += 1
+    else:
+      if current_state == 1:
+        stance_durations.append(duration * dt)
+      else:
+        swing_durations.append(duration * dt)
+      current_state = val
+      duration = 1
+
+  if duration > 0:
+    if current_state == 1:
+      stance_durations.append(duration * dt)
+    else:
+      swing_durations.append(duration * dt)
+
+  avg_stance = float(np.mean(stance_durations)) if stance_durations else 0.0
+  avg_swing = float(np.mean(swing_durations)) if swing_durations else 0.0
+  avg_step = avg_stance + avg_swing if (avg_stance > 0 and avg_swing > 0) else 0.0
+  duty_cycle = float(np.mean(signal))
+  return duty_cycle, avg_stance, avg_swing, avg_step
+
+avg_body_velocity = float(np.mean(base_vel[:, 0]))
+distance_traveled = float(final_base_pos[0] - base_pos[0, 0])
+distance_mag = max(abs(distance_traveled), 1e-6)
+robot_mass = float(np.sum(env.robot.GetTotalMassFromURDF()))
+weight = robot_mass * 9.81
+cot = mechanical_work / (weight * distance_mag) if weight > 0 else 0.0
+
+print("\n===== Gait + Energy Metrics =====")
+print(f"Average body velocity (x): {avg_body_velocity:.3f} m/s")
+print(f"Distance traveled (x): {distance_traveled:.3f} m")
+for i, name in enumerate(leg_names):
+  duty, stance_dur, swing_dur, step_dur = compute_contact_stats(feet_contacts[i], TIME_STEP)
+  print(f"{name}: duty={duty:.2f}, stance={stance_dur:.3f}s, swing={swing_dur:.3f}s, step={step_dur:.3f}s")
+print(f"Cost of Transport (CoT): {cot:.3f}")
+
 ##################################################### 
 # PLOTS
 #####################################################
@@ -167,9 +229,6 @@ def darken_color(color, factor=0.6):
     return tuple(rgb * factor)
 
 fig, axs = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
-
-leg_names = ["FR", "FL", "RR", "RL"]
-
 
 # --- r ---
 for i, name in enumerate(leg_names):

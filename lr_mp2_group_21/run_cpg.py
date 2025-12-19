@@ -53,7 +53,7 @@ matplotlib.rcParams.update({
   "legend.fontsize": 16
 })
 
-ADD_CARTESIAN_PD = False
+ADD_CARTESIAN_PD = True
 TIME_STEP = 0.001
 foot_y = 0.0838 # this is the hip length 
 sideSign = np.array([-1, 1, -1, 1]) # get correct hip sign (body right is negative)
@@ -70,7 +70,17 @@ env = QuadrupedGymEnv(render=True,              # visualize
                     )
 
 # initialize Hopf Network, supply gait
-cpg = HopfNetwork(time_step=TIME_STEP)
+cpg = HopfNetwork(
+    time_step=TIME_STEP,
+    omega_swing=6 * 2 * np.pi,   # swing phase frequency (default 5*2pi rad/s)
+    omega_stance=3 * 2 * np.pi,  # stance phase frequency (default 2*2pirad/s)
+    gait="TROT",
+    ground_clearance=0.08,#default0.07
+    ground_penetration=0.015,#default0.01
+    robot_height=0.28,#default0.3
+    des_step_len=0.05,#default0.05
+)
+
 
 
 TEST_STEPS = int(10 / (TIME_STEP))
@@ -102,8 +112,8 @@ kd = np.array([10,   2,  2])
 
 
 # Cartesian PD gains
-kpCartesian = np.diag([500,500,600])
-kdCartesian = np.diag([10,30,10])
+kpCartesian = np.diag([80,50,80])
+kdCartesian = np.diag([3,8,3])
 
 for j in range(TEST_STEPS):
   # initialize torque array to send to motors

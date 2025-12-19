@@ -71,6 +71,8 @@ env = QuadrupedGymEnv(render=True,              # visualize
                     )
 
 # initialize Hopf Network, supply gait
+
+
 cpg = HopfNetwork(
     time_step=TIME_STEP,
     omega_swing=5 * 2 * np.pi,   # swing phase frequency (default 5*2pi rad/s)
@@ -81,9 +83,6 @@ cpg = HopfNetwork(
     robot_height=0.3,#default0.3
     des_step_len=0.05,#default0.05
 )
-
-
-
 TEST_STEPS = int(10 / (TIME_STEP))
 t = np.arange(TEST_STEPS)*TIME_STEP
 
@@ -98,6 +97,7 @@ joint_vel = np.zeros((12, TEST_STEPS))
 foot_pos = np.zeros((4, 3, TEST_STEPS))
 base_pos = np.zeros((TEST_STEPS, 3))
 base_vel = np.zeros((TEST_STEPS, 3))
+base_forward = np.zeros((TEST_STEPS, 3))
 feet_contacts = np.zeros((4, TEST_STEPS), dtype=int)
 
 #desired state
@@ -105,16 +105,16 @@ joint_pos_des = np.zeros((12, TEST_STEPS))
 foot_pos_des = np.zeros((4, 3, TEST_STEPS))
 
 mechanical_work = 0.0
+mechanical_work_step = np.zeros(TEST_STEPS)
 
 ############## Sample Gains
 # joint PD gains
 kp = np.array([100, 170, 170])
 kd = np.array([10,   2,  2]) 
-
-
 # Cartesian PD gains
-kpCartesian = np.diag([80,50,80])
-kdCartesian = np.diag([3,8,3])
+kpCartesian = np.diag([300,1000,300])*10
+kdCartesian = np.diag([10,10,10])*np.sqrt(10)
+
 
 for j in range(TEST_STEPS):
   # initialize torque array to send to motors
@@ -165,9 +165,13 @@ for j in range(TEST_STEPS):
 
   base_pos[j, :] = env.robot.GetBasePosition()
   base_vel[j, :] = env.robot.GetBaseLinearVelocity()
+  base_rot = env.robot.GetBaseOrientationMatrix()
+  base_forward[j, :] = base_rot @ np.array([1.0, 0.0, 0.0])
   _, _, _, contact_bool = env.robot.GetContactInfo()
   feet_contacts[:, j] = np.asarray(contact_bool)
-  mechanical_work += np.abs(np.dot(action, dq)) * TIME_STEP
+  step_work = np.abs(np.dot(action, dq)) * TIME_STEP
+  mechanical_work_step[j] = step_work
+  mechanical_work += step_work
 
   # send torques to robot and simulate TIME_STEP seconds 
   env.step(action) 
@@ -185,8 +189,6 @@ for j in range(TEST_STEPS):
   for i in range(4):
     _, p_curr = env.robot.ComputeJacobianAndPosition(i, specific_q=q[3*i:3*i+3])
     foot_pos[i, :, j] = p_curr
-
-final_base_pos = np.asarray(env.robot.GetBasePosition())
 
 def compute_contact_stats(contact_signal, dt):
   signal = np.asarray(contact_signal, dtype=int)
@@ -221,25 +223,24 @@ def compute_contact_stats(contact_signal, dt):
   duty_cycle = float(np.mean(signal))
   return duty_cycle, avg_stance, avg_swing, avg_step
 
-avg_body_velocity = float(np.mean(base_vel[:, 0]))
+forward_speed = np.einsum("ij,ij->i", base_vel, base_forward)
 conv_idx = min(TEST_STEPS, max(0, int(CONVERGENCE_TIME / TIME_STEP)))
 if conv_idx >= TEST_STEPS:
-  avg_body_velocity_converged = avg_body_velocity
-else:
-  avg_body_velocity_converged = float(np.mean(base_vel[conv_idx:, 0]))
-distance_traveled = float(final_base_pos[0] - base_pos[0, 0])
+  conv_idx = 0
+avg_body_velocity = float(np.mean(forward_speed[conv_idx:]))
+distance_traveled = float(np.sum(forward_speed[conv_idx:]) * TIME_STEP)
 distance_mag = max(abs(distance_traveled), 1e-6)
+mechanical_work = float(np.sum(mechanical_work_step[conv_idx:]))
 robot_mass = float(np.sum(env.robot.GetTotalMassFromURDF()))
 weight = robot_mass * 9.81
 cot = mechanical_work / (weight * distance_mag) if weight > 0 else 0.0
 
-print("\n===== Gait + Energy Metrics =====")
-print(f"Average body velocity (x): {avg_body_velocity:.3f} m/s")
-print(f"Average body velocity (x) after convergence: {avg_body_velocity_converged:.3f} m/s")
-print(f"Distance traveled (x): {distance_traveled:.3f} m")
+print("\n===== Gait + Energy Metrics (After Convergence) =====")
+print(f"Average body forward velocity: {avg_body_velocity:.3f} m/s")
+print(f"Distance traveled (forward): {distance_traveled:.3f} m")
 leg_contact_stats = []
 for i, name in enumerate(leg_names):
-  duty, stance_dur, swing_dur, step_dur = compute_contact_stats(feet_contacts[i], TIME_STEP)
+  duty, stance_dur, swing_dur, step_dur = compute_contact_stats(feet_contacts[i, conv_idx:], TIME_STEP)
   leg_contact_stats.append((duty, stance_dur, swing_dur, step_dur))
   print(f"{name}: duty={duty:.2f}, stance={stance_dur:.3f}s, swing={swing_dur:.3f}s, step={step_dur:.3f}s")
 if leg_contact_stats:
@@ -255,10 +256,7 @@ print(f"Cost of Transport (CoT): {cot:.3f}")
 #####################################################
 # Plot CPG amplitudes and phases
 def darken_color(color, factor=0.6):
-    """
-    factor < 1  → darker
-    factor = 1  → same
-    """
+    
     rgb = np.array(mcolors.to_rgb(color))
     return tuple(rgb * factor)
 

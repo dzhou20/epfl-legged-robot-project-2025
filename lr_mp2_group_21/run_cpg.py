@@ -55,6 +55,7 @@ matplotlib.rcParams.update({
 
 ADD_CARTESIAN_PD = True
 TIME_STEP = 0.001
+CONVERGENCE_TIME = 5.0  # seconds to skip before computing steady-state metrics
 foot_y = 0.0838 # this is the hip length 
 sideSign = np.array([-1, 1, -1, 1]) # get correct hip sign (body right is negative)
 leg_names = ["FR", "FL", "RR", "RL"]
@@ -72,12 +73,12 @@ env = QuadrupedGymEnv(render=True,              # visualize
 # initialize Hopf Network, supply gait
 cpg = HopfNetwork(
     time_step=TIME_STEP,
-    omega_swing=6 * 2 * np.pi,   # swing phase frequency (default 5*2pi rad/s)
-    omega_stance=3 * 2 * np.pi,  # stance phase frequency (default 2*2pirad/s)
+    omega_swing=5 * 2 * np.pi,   # swing phase frequency (default 5*2pi rad/s)
+    omega_stance=2 * 2 * np.pi,  # stance phase frequency (default 2*2pirad/s)
     gait="TROT",
-    ground_clearance=0.08,#default0.07
-    ground_penetration=0.015,#default0.01
-    robot_height=0.28,#default0.3
+    ground_clearance=0.07,#default0.07
+    ground_penetration=0.01,#default0.01
+    robot_height=0.3,#default0.3
     des_step_len=0.05,#default0.05
 )
 
@@ -221,6 +222,11 @@ def compute_contact_stats(contact_signal, dt):
   return duty_cycle, avg_stance, avg_swing, avg_step
 
 avg_body_velocity = float(np.mean(base_vel[:, 0]))
+conv_idx = min(TEST_STEPS, max(0, int(CONVERGENCE_TIME / TIME_STEP)))
+if conv_idx >= TEST_STEPS:
+  avg_body_velocity_converged = avg_body_velocity
+else:
+  avg_body_velocity_converged = float(np.mean(base_vel[conv_idx:, 0]))
 distance_traveled = float(final_base_pos[0] - base_pos[0, 0])
 distance_mag = max(abs(distance_traveled), 1e-6)
 robot_mass = float(np.sum(env.robot.GetTotalMassFromURDF()))
@@ -229,10 +235,19 @@ cot = mechanical_work / (weight * distance_mag) if weight > 0 else 0.0
 
 print("\n===== Gait + Energy Metrics =====")
 print(f"Average body velocity (x): {avg_body_velocity:.3f} m/s")
+print(f"Average body velocity (x) after convergence: {avg_body_velocity_converged:.3f} m/s")
 print(f"Distance traveled (x): {distance_traveled:.3f} m")
+leg_contact_stats = []
 for i, name in enumerate(leg_names):
   duty, stance_dur, swing_dur, step_dur = compute_contact_stats(feet_contacts[i], TIME_STEP)
+  leg_contact_stats.append((duty, stance_dur, swing_dur, step_dur))
   print(f"{name}: duty={duty:.2f}, stance={stance_dur:.3f}s, swing={swing_dur:.3f}s, step={step_dur:.3f}s")
+if leg_contact_stats:
+  avg_duty = float(np.mean([stat[0] for stat in leg_contact_stats]))
+  avg_stance_dur = float(np.mean([stat[1] for stat in leg_contact_stats]))
+  avg_swing_dur = float(np.mean([stat[2] for stat in leg_contact_stats]))
+  avg_step_dur = float(np.mean([stat[3] for stat in leg_contact_stats]))
+  print(f"Average (all legs): duty={avg_duty:.2f}, stance={avg_stance_dur:.3f}s, swing={avg_swing_dur:.3f}s, step={avg_step_dur:.3f}s")
 print(f"Cost of Transport (CoT): {cot:.3f}")
 
 ##################################################### 

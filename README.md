@@ -1,9 +1,11 @@
 # Learning-based Control for Quadruped Locomotion ⚙️
 > Learning-based Control for Quadruped Locomotion 🐕: 
+
 [1] Jumping with Force-Profile Control
+
 [2] Slope/Stair/Gap Locomotion with Hopf Central Pattern Generation (CPG) and Reinforcement Learning (RL)
 
-(Original Course: MICRO-507 Legged Robots)
+(Original Course: 🇨🇭EPFL MICRO-507 Legged Robots)
 
 
 ## Highlights

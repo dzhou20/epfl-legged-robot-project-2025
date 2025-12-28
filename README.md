@@ -1,5 +1,8 @@
-# EPFL Legged Robot Projects 2025
-> Learning-based Control for Quadruped Locomotion: [1] Jumping with Force-Profile Control, [2] Slope Locomotion with Hopf Central Pattern Generation (CPG) and Reinforcement Learning (RL)
+# Learning-based Control for Quadruped Locomotion ⚙️
+> Learning-based Control for Quadruped Locomotion 🐕: 
+[1] Jumping with Force-Profile Control
+[2] Slope/Stair/Gap Locomotion with Hopf Central Pattern Generation (CPG) and Reinforcement Learning (RL)
+
 (Original Course: MICRO-507 Legged Robots)
 
 

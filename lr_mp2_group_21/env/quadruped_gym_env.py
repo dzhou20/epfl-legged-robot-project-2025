@@ -140,6 +140,7 @@ class QuadrupedGymEnv(gym.Env):
       on_rack=False,
       render=False,  # no rendering for RL training
       record_video=False,
+      record_video_dir=None,
       add_noise=True,
       terrain=None,
       test_flagrun=False, 
@@ -184,12 +185,13 @@ class QuadrupedGymEnv(gym.Env):
     self._on_rack = on_rack
     self._is_render = render
     self._is_record_video = record_video
+    self._record_video_dir = record_video_dir
     self._add_noise = add_noise
     self._using_test_env = test_env
     self._test_flagrun = test_flagrun
     self.goal_id = None
     self._terrain = terrain
-    self._desired_velocity = np.array([1,1,0])
+    self._desired_velocity = np.array([1.0,0,0])
     if self._add_noise:
       self._observation_noise_stdev = 0.01 #
     else:
@@ -242,8 +244,9 @@ class QuadrupedGymEnv(gym.Env):
       # If using CPG-RL, remember to include limits on these
       # The observation is passed through VecNomalize, then MLP policy network
       # Improved Baseline: Follow the suggestions given in paper
-      observation_high = (np.concatenate((self._robot_config.UPPER_ANGLE_JOINT,  # angle joints (upper bound, 12)
-                                         self._robot_config.VELOCITY_LIMITS,  # angle velocity (upper bound, 12)
+      observation_high = (np.concatenate((
+                                         # self._robot_config.UPPER_ANGLE_JOINT,  # angle joints (upper bound, 12)
+                                         # self._robot_config.VELOCITY_LIMITS,  # angle velocity (upper bound, 12)
                                          np.array([1.0]*4),  # quaternion (upper bound)
                                          np.array([5.0]*3),  # base angular velocity (upper bound)
                                          np.array([3.0]*3),  # base linear velocity (upper bound)
@@ -252,10 +255,11 @@ class QuadrupedGymEnv(gym.Env):
                                          np.array([30.0]*4),  # CPG amplitudes derivative (upper bound)
                                          np.array([2*np.pi]*4),  # CPG phases (upper bound
                                          np.array([40.0]*4),  # CPG phases derivative (upper bound)
-                                         np.array([1.0]*self._action_dim),  # previous action (upper bound)
+                                         # np.array([1.0]*self._action_dim),  # previous action (upper bound)
                                          )) +  OBSERVATION_EPS)
-      observation_low = (np.concatenate((self._robot_config.LOWER_ANGLE_JOINT,
-                                         -self._robot_config.VELOCITY_LIMITS,
+      observation_low = (np.concatenate((
+                                         # self._robot_config.LOWER_ANGLE_JOINT,
+                                         # -self._robot_config.VELOCITY_LIMITS,
                                          np.array([-1.0]*4),  # quaternion (lower bound)
                                          np.array([-5.0]*3),  # base angular velocity (lower bound)
                                          np.array([-3.0]*3),  # base linear velocity (lower bound)
@@ -264,7 +268,7 @@ class QuadrupedGymEnv(gym.Env):
                                          np.array([-30.0]*4),  # CPG amplitudes derivative (lower bound)
                                          np.array([0.0]*4),  # CPG phases (lower bound)
                                          np.array([-40.0]*4),  # CPG phases derivative (lower bound)
-                                         np.array([-1.0]*self._action_dim),  # previous action (lower bound)
+                                         # np.array([-1.0]*self._action_dim),  # previous action (lower bound)
                                          )) -  OBSERVATION_EPS)
     
     else:
@@ -317,8 +321,8 @@ class QuadrupedGymEnv(gym.Env):
       cpg_dtheta  = self._cpg.get_dtheta()  # (4,)
 
       self._observation = np.concatenate((
-        motor_angles,
-        motor_vels,
+        # motor_angles,
+        # motor_vels,
         base_quat,
         base_omega,
         base_vel,
@@ -327,7 +331,7 @@ class QuadrupedGymEnv(gym.Env):
         cpg_dr,
         cpg_theta,
         cpg_dtheta,
-        self._last_action,
+        # self._last_action,
       ))
   
   
@@ -446,29 +450,59 @@ class QuadrupedGymEnv(gym.Env):
     
     return max(reward,0) # keep rewards positive
   
+
   def _reward_lr_course(self):
+    def exp_reward(x):
+        ''' Exponential reward function for tracking. '''
+        return np.exp(-np.square(x) / 0.25)
+    
+
     # The simple case for velocity tracking only
     # vel_tracking_reward = 0.1 * np.clip(self.robot.GetBaseLinearVelocity()[0], 0.2, 1.0)
     # If you want to track a desired velocity
     v_des_x, v_des_y, w_des_z = self._desired_velocity
     v_b = self.robot.GetBaseLinearVelocity()
     w_b = self.robot.GetBaseAngularVelocity()
+    p_b = self.robot.GetBasePosition()
     # vel_tracking_reward = 0.05 * np.exp( -1/ 0.25 *  (self.robot.GetBaseLinearVelocity()[0] - des_vel_x)**2 )
-    vx_tracking_reward_linear = np.clip(0.1 * (1 - abs(v_b[0] - v_des_x)), 0.0, 0.1)
+    vx_tracking_reward_linear = np.clip(0.1 * (1 - abs(v_b[0] - v_des_x)/1.5), 0.0, 0.1)
+    
+    r_vx = exp_reward(v_des_x - v_b[0])
+    vx_tracking_reward_exp = 0.75 * r_vx
+
+    r_vy = exp_reward(v_des_y - v_b[1])
+    vy_tracking_reward_exp = 0.75 * r_vy
+
+    r_wz = exp_reward(w_des_z - w_b[2])
+    wz_tracking_reward_exp = 0.5 * r_wz
+
+    vy_tracking_reward_linear = 0.0
+    wz_tracking_reward_linear = 0.0
+
     vy_tracking_reward_linear = np.clip(0.1 * (1 - abs(v_b[1] - v_des_y)), 0.0, 0.1)
+    # if (v_des_y == 0):
+    #   vy_tracking_reward_linear = 0.0
+    
     wz_tracking_reward_linear = np.clip(0.1 * (1 - abs(w_b[2] - w_des_z)), 0.0, 0.1)
+    # if (w_des_z == 0):
+    #   wz_tracking_reward_linear = 0.0
 
     # minimize yaw (go straight)
     # yaw_reward is only work if we want to go straight (x direction)
-    # yaw_reward = -0.2 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[2]) 
+    yaw_reward = 0.0
+    if (w_des_z == 0):
+      yaw_reward = -0.2 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[2]) 
     
     row_reward = -0.1 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[0])
 
     # minimize pitch (keep body level front-back)
     pitch_reward = -0.1 * np.abs(self.robot.GetBaseOrientationRollPitchYaw()[1])
+    if (self._terrain == "SLOPES"):
+      pitch_reward = 0.0  # do not penalize pitch on slopes
     
-    # don't drift laterally 
-    # drift_reward = -0.01 * abs(self.robot.GetBasePosition()[1]) 
+    drift_reward = 0.0
+    if v_des_y == 0:  # if no lateral command, penalize drift
+      drift_reward = -0.01 * abs(self.robot.GetBasePosition()[1]) 
     
     # minimize energy 
     energy_reward = 0 
@@ -478,17 +512,38 @@ class QuadrupedGymEnv(gym.Env):
 
     is_fallen_reward = self.is_fallen()
 
-    reward = vx_tracking_reward_linear \
-            + vy_tracking_reward_linear \
-            + wz_tracking_reward_linear \
+    reward = vx_tracking_reward_exp \
+            + vy_tracking_reward_exp \
+            + yaw_reward \
+            + drift_reward \
             + pitch_reward \
             + row_reward \
+            + 0.1 * p_b[0] \
             - 0.01 * energy_reward \
             - 10.0 * is_fallen_reward \
             # - 0.1 * np.linalg.norm(self.robot.GetBaseOrientation() - np.array([0,0,0,1])) \
             # directly penalizing roll/pitch/yaw is better
+    
+    # + wz_tracking_reward_exp \
+
+    reward = max(reward,0) # keep rewards positive
+
+    self._last_reward_components = {
+      'vx': vx_tracking_reward_exp,
+      'vy': vy_tracking_reward_exp,
+      'wz': wz_tracking_reward_exp,
+      'yaw': yaw_reward,
+      'drift': drift_reward,
+      'pitch': pitch_reward,
+      'roll': row_reward,
+      'energy': -0.01 * energy_reward,
+      'fallen': -10.0 * is_fallen_reward,
+      'total': reward,
+    }
     # print("reward: ", reward)
-    # print("vel_tracking_reward: ", vel_tracking_reward_linear)
+    # print("vx_tracking_reward_linear: ", vx_tracking_reward_linear)
+    # print("vy_tracking_reward_linear: ", vy_tracking_reward_linear)
+    # print("wz_tracking_reward_linear: ", wz_tracking_reward_linear)
     # print("yaw_reward: ", yaw_reward)
     # print("pitch_reward: ", pitch_reward)
     # print("drift_reward: ", drift_reward)
@@ -623,7 +678,7 @@ class QuadrupedGymEnv(gym.Env):
     
     # scale to corresponding desired foot positions (i.e. ranges in x,y,z we allow the agent to choose foot positions)
     # [TODO: edit (do you think these should these be increased? How limiting is this?)]
-    scale_array = np.array([0.1, 0.05, 0.08]*4)
+    scale_array = np.array([0.10, 0.05, 0.08]*4)
     
     # add to nominal foot position in leg frame (what are the final ranges?)
     des_foot_pos = self._robot_config.NOMINAL_FOOT_POS_LEG_FRAME + scale_array*u
@@ -798,7 +853,7 @@ class QuadrupedGymEnv(gym.Env):
 
       if self._terrain is not None:
         if self._terrain == "SLOPES":
-          self.add_slopes(pitch=0.2)
+          self.add_slopes(pitch=0.285)
         elif self._terrain == "STAIRS":
           self.add_stairs(num_stairs=12, stair_height=0.05, stair_width=0.25)
         elif self._terrain == "GAPS":
@@ -916,7 +971,7 @@ class QuadrupedGymEnv(gym.Env):
     """ Helper to record video, if not already, or end and start a new one """
     # If no ID, this is the first video, so make a directory and start logging
     if self.videoLogID == None:
-      directoryName = VIDEO_LOG_DIRECTORY
+      directoryName = self._record_video_dir or VIDEO_LOG_DIRECTORY
       assert isinstance(directoryName, str)
       os.makedirs(directoryName, exist_ok=True)
       self.videoDirectory = directoryName

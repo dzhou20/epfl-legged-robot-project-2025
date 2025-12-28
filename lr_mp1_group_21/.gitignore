@@ -4,3 +4,4 @@ __pycache__
 videos
 env/__pycache__
 videos/
+.DS_Store

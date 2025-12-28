@@ -67,6 +67,7 @@ env_configs = {
     "observation_space_mode": "LR_COURSE_OBS",
     # "observation_space_mode": "DEFAULT",
     "add_noise": False,
+    "terrain": "SLOPES"
 }
 
 if USE_GPU:  # and LEARNING_ALG=="SAC":
@@ -155,7 +156,7 @@ if LOAD_NN:
 # Learn and save (may need to train for longer)
 # Baseline Given in the File: 1000000 timesteps
 train_start = time.time()
-model.learn(total_timesteps=1500000, log_interval=1, callback=checkpoint_callback)
+model.learn(total_timesteps=3000000, log_interval=1, callback=checkpoint_callback)
 train_elapsed = time.time() - train_start
 print(f"Training finished, elapsed: {train_elapsed:.1f} sec (start at {train_start:.0f})")
 

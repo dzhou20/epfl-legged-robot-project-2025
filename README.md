@@ -42,6 +42,9 @@ python load_sb3.py --weights path/to/model.zip
 ## Demos
 - To be added...
 
+##Videos
+- https://epflch-my.sharepoint.com/:u:/g/personal/hsu-li_huang_epfl_ch/IQAJjnkmWc3SQYhhQXpAxxh3ATWVQZ3BbmwMO2p2S2oxUiI
+
 ## Algorithms
 - MP1: Force-profile oscillator (stance/stage phase) driving foot impulses, mapped via Jacobian to joint torques; nominal foot PD, gravity compensation, virtual-model term when in contact.
 - MP2: Hopf CPG in polar form with gait phase offsets -> foot x/z trajectories -> IK + joint/Cartesian PD; RL uses SB3 PPO/SAC to learn/improve CPG-related parameters in PyBullet env.

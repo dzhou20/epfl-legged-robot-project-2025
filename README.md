@@ -42,7 +42,7 @@ python load_sb3.py --weights path/to/model.zip
 ## Demos
 - To be added...
 
-##Videos
+## Videos
 - https://epflch-my.sharepoint.com/:u:/g/personal/hsu-li_huang_epfl_ch/IQAJjnkmWc3SQYhhQXpAxxh3ATWVQZ3BbmwMO2p2S2oxUiI
 
 ## Algorithms
